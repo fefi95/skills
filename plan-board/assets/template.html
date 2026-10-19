@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__ · Plan Board</title>
+<style>
+:root {
+  --bg: #fdf1e3;
+  --paper: #fff8ee;
+  --peach: #fbe3cf;
+  --line: #8b5a44;
+  --line-soft: #c9a28c;
+  --ink: #4a2f23;
+  --ink-soft: #7a5a4a;
+  --accent: #b5502f;
+  --green: #5b8a3c;
+  --amber: #b08a1a;
+  --radius: 16px;
+  --stroke: 3px;
+  --font: ui-rounded, "Nunito", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); line-height: 1.4; }
+body { padding: 20px 16px 60px; max-width: 1400px; margin: 0 auto; }
+h1, h2, h3 { margin: 0; }
+button { font: inherit; color: inherit; cursor: pointer; }
+
+/* hand-drawn-ish panels */
+.panel {
+  background: var(--paper);
+  border: var(--stroke) solid var(--line);
+  border-radius: 20px 24px 18px 22px / 22px 18px 24px 20px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+}
+.panel > h2 { font-size: 1.15rem; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+
+/* header */
+.head { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; }
+.head h1 { font-size: 1.6rem; }
+.head p { margin: 4px 0 0; color: var(--ink-soft); max-width: 70ch; }
+.stats { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
+.stat {
+  border: 2px solid var(--line); border-radius: 14px 16px 13px 15px / 15px 13px 16px 14px;
+  background: var(--peach); padding: 6px 12px; min-width: 84px; text-align: center;
+}
+.stat b { display: block; font-size: 1.25rem; }
+.stat span { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-soft); }
+.stat.ring { display: flex; align-items: center; gap: 8px; }
+.stat.warn { background: #fbdcd5; border-style: dashed; }
+details.notes { margin-top: 12px; }
+details.notes summary { cursor: pointer; font-weight: 700; }
+details.notes ul { margin: 6px 0 0; padding-left: 20px; }
+.banner { margin-top: 12px; padding: 10px 14px; border: 3px dashed var(--accent); border-radius: 14px; background: #fff0e6; }
+.banner b { color: var(--accent); }
+.banner ul { margin: 4px 0 0; padding-left: 20px; }
+
+/* pill toggle */
+.pill { display: inline-flex; border: var(--stroke) solid var(--line); border-radius: 999px; overflow: hidden; background: var(--paper); }
+.pill button { border: 0; background: transparent; padding: 6px 18px; font-weight: 700; }
+.pill button[aria-pressed="true"] { background: var(--line); color: var(--paper); }
+.bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.tools { display: flex; gap: 6px; }
+.tools button {
+  border: 2px solid var(--line); background: var(--paper); border-radius: 999px;
+  min-width: 36px; height: 36px; font-weight: 800; padding: 0 12px;
+}
+.tools button:hover { background: var(--peach); }
+
+/* pan-zoom */
+.pz {
+  position: relative; overflow: hidden; height: 62vh; min-height: 340px;
+  border: 2px dotted var(--line-soft); border-radius: var(--radius);
+  background-image: radial-gradient(var(--line-soft) 1px, transparent 1px); background-size: 22px 22px;
+  cursor: grab; touch-action: none;
+}
+.pz.dragging { cursor: grabbing; }
+.pz-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.pz-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-soft); }
+.hint { font-size: .8rem; color: var(--ink-soft); margin-top: 6px; }
+
+.canvas-wrap { display: grid; grid-template-columns: 1fr; gap: 14px; }
+.canvas-wrap.with-drawer { grid-template-columns: minmax(0, 1fr) minmax(280px, 380px); }
+@media (max-width: 800px) { .canvas-wrap.with-drawer { grid-template-columns: 1fr; } }
+#drawer { display: none; }
+.with-drawer #drawer { display: block; }
+
+/* step cards (list + drawer) */
+.card {
+  background: #fffdf8; border: var(--stroke) solid var(--line);
+  border-radius: 18px 20px 16px 19px / 19px 16px 20px 18px; padding: 12px 14px;
+}
+.card.sel { border-style: dashed; outline: 3px dotted var(--accent); outline-offset: 3px; }
+.card h3 { font-size: 1.05rem; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.num, .mnum {
+  display: inline-grid; place-items: center; min-width: 26px; height: 26px; border-radius: 50%;
+  background: var(--line); color: var(--paper); font-size: .8rem; font-weight: 800;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.chip { border: 2px solid var(--line-soft); border-radius: 999px; padding: 1px 10px; font-size: .78rem; background: var(--paper); }
+.chip.dep { cursor: pointer; }
+.spill { border-radius: 999px; padding: 1px 10px; font-size: .72rem; font-weight: 800; border: 2px solid var(--line); background: var(--paper); text-transform: uppercase; letter-spacing: .04em; }
+.spill.in_progress { background: #fff0c2; border-color: var(--amber); }
+.spill.done { background: #e4f1d8; border-color: var(--green); }
+.flag { border-radius: 999px; padding: 1px 9px; font-size: .7rem; font-weight: 800; border: 2px solid; display: inline-block; }
+.flag.crit { color: var(--accent); border-color: var(--accent); background: #fff0e6; }
+.flag.gap { color: #8a1c1c; border-color: #b53a3a; border-style: dashed; background: #fbdcd5; }
+.flag.guess { color: #6a4a00; border-color: var(--amber); border-style: dashed; background: #fff6d6; }
+.sec { margin-top: 10px; }
+.sec > b { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); display: block; margin-bottom: 3px; }
+.files { list-style: none; margin: 0; padding: 0; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .82rem; }
+.files li { padding: 1px 0; word-break: break-all; }
+.gwt { border-left: 4px solid var(--line-soft); padding: 2px 0 2px 10px; margin: 6px 0; font-size: .9rem; }
+.gwt div span { font-weight: 800; color: var(--accent); display: inline-block; min-width: 3.6em; }
+.nocov { border: 2px dashed #b53a3a; border-radius: 12px; padding: 6px 10px; background: #fbdcd5; font-size: .88rem; }
+.list { display: grid; gap: 14px; }
+#view-list { display: none; }
+
+/* mermaid cards (rendered inside the svg) */
+.mcard {
+  width: 220px; background: #fffdf8; border: 3px solid var(--line);
+  border-radius: 18px 20px 16px 19px / 19px 16px 20px 18px; padding: 8px 12px; text-align: left;
+  font-family: var(--font); font-size: 14px; line-height: 1.3; color: var(--ink); white-space: normal;
+}
+.mcard.st-done { background: #eef6e6; border-color: var(--green); }
+.mcard.st-in_progress { background: #fff6d6; border-color: var(--amber); }
+.mcard.sel { border-style: dashed; outline: 3px dotted var(--accent); outline-offset: 3px; }
+.mtop { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.mtitle { font-weight: 800; }
+.mmeta { font-size: 12px; color: var(--ink-soft); margin: 2px 0 4px; }
+.node { cursor: pointer; }
+.node .label, .node .nodeLabel { color: var(--ink); }
+#tree-pz .node, #arch-pz .node { cursor: grab; }
+.edgeLabel, .labelBkg { background: transparent !important; }
+
+/* icons */
+.ic { display: inline-block; width: 16px; height: 16px; vertical-align: -3px; margin-right: 6px; background-size: contain; background-repeat: no-repeat; background-position: center; }
+
+/* decisions */
+.decisions { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.decision { border: 2px solid var(--line-soft); border-radius: 14px; padding: 8px 12px; background: #fffdf8; }
+.decision b { display: block; }
+.decision p { margin: 2px 0 0; font-size: .9rem; color: var(--ink-soft); }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: .85rem; }
+.pz.short { height: 44vh; }
+.err { color: #8a1c1c; padding: 16px; }
+</style>
+</head>
+<body>
+
+<header class="panel" id="head"></header>
+
+<section class="panel">
+  <div class="bar">
+    <h2>Steps</h2>
+    <div class="pill" role="group" aria-label="View">
+      <button id="v-canvas" aria-pressed="true">Canvas</button>
+      <button id="v-list" aria-pressed="false">List</button>
+    </div>
+  </div>
+  <div id="view-canvas">
+    <div class="canvas-wrap" id="canvas-wrap">
+      <div>
+        <div class="tools" data-for="dep-pz"></div>
+        <div class="pz" id="dep-pz"></div>
+        <div class="hint">Drag to pan · scroll or +/− to zoom · click a card for details · the thick line is the critical path</div>
+      </div>
+      <aside id="drawer"></aside>
+    </div>
+  </div>
+  <div id="view-list"><div class="list" id="list"></div></div>
+</section>
+
+<section class="panel">
+  <div class="bar">
+    <h2><span class="ic folder"></span>Architecture</h2>
+    <div class="pill" role="group" aria-label="Architecture view">
+      <button id="a-before" aria-pressed="false">Before</button>
+      <button id="a-after" aria-pressed="true">After</button>
+    </div>
+  </div>
+  <div class="decisions" id="decisions"></div>
+  <div class="tools" data-for="arch-pz"></div>
+  <div class="pz short" id="arch-pz"></div>
+</section>
+
+<section class="panel">
+  <div class="bar">
+    <h2><span class="ic folder"></span>Files touched</h2>
+    <div class="legend">
+      <span><span class="ic create"></span>create</span>
+      <span><span class="ic edit"></span>edit</span>
+      <span><span class="ic delete"></span>delete</span>
+    </div>
+  </div>
+  <div class="tools" data-for="tree-pz"></div>
+  <div class="pz short" id="tree-pz"></div>
+</section>
+
+<script>/*__MERMAID__*/</script>
+<script>
+"use strict";
+const DATA = /*__DATA__*/null;
+
+/* ---------- helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const el = (tag, cls, text) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+};
+const byId = Object.fromEntries(DATA.steps.map(s => [s.id, s]));
+const label = s => s.replace(/_/g, " ");
+
+/* ---------- line-drawn icons (CSS background images) ---------- */
+const ICONS = {
+  create: ["#5b8a3c", "<path d='M6 3h8l4 4v14H6z'/><path d='M12 11v6M9 14h6'/>"],
+  edit: ["#b08a1a", "<path d='M4 20l1-4L16 5l3 3L8 19z'/><path d='M14 7l3 3'/>"],
+  delete: ["#b5502f", "<path d='M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13M10 11v6M14 11v6'/>"],
+  folder: ["#8b5a44", "<path d='M3 7h6l2 2h10v10H3z'/>"],
+  doc: ["#8b5a44", "<path d='M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6'/>"],
+};
+(function () {
+  let css = "";
+  for (const [name, [color, body]] of Object.entries(ICONS)) {
+    const svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + color +
+      "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>" + body + "</svg>";
+    css += ".ic." + name + "{background-image:url(\"data:image/svg+xml," + encodeURIComponent(svg) + "\")}\n";
+  }
+  document.head.appendChild(el("style", null, css));
+})();
+
+/* ---------- pan / zoom ---------- */
+function panZoom(host, onClick) {
+  const stage = el("div", "pz-stage");
+  host.appendChild(stage);
+  let x = 0, y = 0, k = 1, w = 0, h = 0;
+  const apply = () => { stage.style.transform = "translate(" + x + "px," + y + "px) scale(" + k + ")"; };
+  const zoomAt = (cx, cy, f) => {
+    const nk = Math.min(4, Math.max(0.15, k * f));
+    x = cx - (cx - x) * (nk / k); y = cy - (cy - y) * (nk / k); k = nk; apply();
+  };
+  const api = {
+    set(svg) {
+      stage.innerHTML = svg;
+      const s = stage.querySelector("svg");
+      const vb = s.viewBox.baseVal;
+      w = vb.width; h = vb.height;
+      s.setAttribute("width", w); s.setAttribute("height", h);
+      s.style.maxWidth = "none";
+      api.fit();
+    },
+    fit() {
+      if (!w) return;
+      const r = host.getBoundingClientRect();
+      if (!r.width) return;
+      k = Math.min(1.2, (r.width - 24) / w, (r.height - 24) / h);
+      x = (r.width - w * k) / 2; y = (r.height - h * k) / 2; apply();
+    },
+    zoom(f) { const r = host.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, f); },
+    stage,
+  };
+  let drag = null;
+  host.addEventListener("wheel", e => {
+    e.preventDefault();
+    const r = host.getBoundingClientRect();
+    zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+  }, { passive: false });
+  host.addEventListener("pointerdown", e => {
+    drag = { sx: e.clientX, sy: e.clientY, ox: x, oy: y, moved: false, target: e.target };
+    host.setPointerCapture(e.pointerId);
+  });
+  host.addEventListener("pointermove", e => {
+    if (!drag) return;
+    const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+    if (Math.abs(dx) + Math.abs(dy) > 4) { drag.moved = true; host.classList.add("dragging"); }
+    if (drag.moved) { x = drag.ox + dx; y = drag.oy + dy; apply(); }
+  });
+  const end = e => {
+    if (drag && !drag.moved && onClick && e.type === "pointerup") onClick(drag.target);
+    drag = null; host.classList.remove("dragging");
+  };
+  host.addEventListener("pointerup", end);
+  host.addEventListener("pointercancel", end);
+  return api;
+}
+
+function toolbar(name, pz) {
+  const box = $('.tools[data-for="' + name + '"]');
+  for (const [t, fn] of [["+", () => pz.zoom(1.25)], ["−", () => pz.zoom(0.8)], ["Fit", () => pz.fit()]]) {
+    const b = el("button", null, t);
+    b.type = "button";
+    b.addEventListener("click", fn);
+    box.appendChild(b);
+  }
+}
+
+/* ---------- step card ---------- */
+function stepCard(s, opts) {
+  const c = el("article", "card" + (opts && opts.sel ? " sel" : ""));
+  c.dataset.id = s.id;
+  const h = el("h3");
+  h.appendChild(el("span", "num", s.num));
+  h.appendChild(document.createTextNode(s.title));
+  h.appendChild(el("span", "spill " + s.status, label(s.status)));
+  if (s.critical) h.appendChild(el("span", "flag crit", "critical path"));
+  if (s.inferred.length) h.appendChild(el("span", "flag guess", "inferred: " + s.inferred.join(", ")));
+  c.appendChild(h);
+  if (s.depends_on.length) {
+    const chips = el("div", "chips");
+    chips.appendChild(el("span", null, "after"));
+    for (const d of s.depends_on) {
+      const ch = el("span", "chip dep", byId[d].num + " · " + byId[d].title);
+      ch.addEventListener("click", () => select(d));
+      chips.appendChild(ch);
+    }
+    c.appendChild(chips);
+  }
+  const files = el("div", "sec"); files.appendChild(el("b", null, "Files"));
+  if (s.files.length) {
+    const ul = el("ul", "files");
+    for (const f of s.files) {
+      const li = el("li");
+      li.appendChild(el("span", "ic " + f.action));
+      li.appendChild(document.createTextNode(f.path));
+      ul.appendChild(li);
+    }
+    files.appendChild(ul);
+  } else files.appendChild(el("div", "hint", "No files listed"));
+  c.appendChild(files);
+  const ac = el("div", "sec"); ac.appendChild(el("b", null, "Acceptance criteria"));
+  if (s.acceptance_criteria.length) {
+    for (const a of s.acceptance_criteria) {
+      const g = el("div", "gwt");
+      for (const k of ["given", "when", "then"]) {
+        if (!a[k]) continue;
+        const row = el("div");
+        row.appendChild(el("span", null, k[0].toUpperCase() + k.slice(1)));
+        row.appendChild(document.createTextNode(a[k]));
+        g.appendChild(row);
+      }
+      ac.appendChild(g);
+    }
+  } else ac.appendChild(el("div", "nocov", "No acceptance criteria yet. This step has no way to be checked."));
+  c.appendChild(ac);
+  if (s.notes) {
+    const n = el("div", "sec"); n.appendChild(el("b", null, "Notes"));
+    n.appendChild(el("div", null, s.notes));
+    c.appendChild(n);
+  }
+  return c;
+}
+
+/* ---------- header ---------- */
+function ringSvg(done, total) {
+  const r = 15, C = 2 * Math.PI * r, f = total ? done / total : 0;
+  return "<svg width='40' height='40' viewBox='0 0 40 40'><circle cx='20' cy='20' r='" + r +
+    "' fill='none' stroke='#e6cdb9' stroke-width='5'/><circle cx='20' cy='20' r='" + r +
+    "' fill='none' stroke='#5b8a3c' stroke-width='5' stroke-linecap='round' stroke-dasharray='" + (C * f) + " " + C +
+    "' transform='rotate(-90 20 20)'/></svg>";
+}
+function renderHead() {
+  const head = $("#head");
+  const top = el("div", "head");
+  const t = el("div");
+  t.appendChild(el("h1", null, DATA.title));
+  if (DATA.summary) t.appendChild(el("p", null, DATA.summary));
+  top.appendChild(t);
+  const stats = el("div", "stats");
+  const stat = (v, l, cls) => { const d = el("div", "stat " + (cls || "")); d.appendChild(el("b", null, v)); d.appendChild(el("span", null, l)); return d; };
+  const done = DATA.steps.filter(s => s.status === "done").length;
+  const ring = el("div", "stat ring");
+  ring.innerHTML = ringSvg(done, DATA.steps.length);
+  const rt = el("div"); rt.appendChild(el("b", null, done + "/" + DATA.steps.length)); rt.appendChild(el("span", null, "done"));
+  ring.appendChild(rt);
+  stats.appendChild(ring);
+  stats.appendChild(stat(DATA.steps.length, "steps"));
+  stats.appendChild(stat(DATA.n_files, "files"));
+  stats.appendChild(stat(DATA.complexity, "complexity"));
+  const gaps = DATA.steps.filter(s => !s.covered).length;
+  stats.appendChild(stat((DATA.steps.length - gaps) + "/" + DATA.steps.length, "covered", gaps ? "warn" : ""));
+  stats.appendChild(stat(DATA.open_questions.length + DATA.risks.length, "open Qs & risks", DATA.open_questions.length + DATA.risks.length ? "warn" : ""));
+  top.appendChild(stats);
+  head.appendChild(top);
+  const lists = [["Open questions", DATA.open_questions], ["Risks", DATA.risks]];
+  for (const [name, items] of lists) {
+    if (!items.length) continue;
+    const d = el("details", "notes"); d.open = true;
+    d.appendChild(el("summary", null, name + " (" + items.length + ")"));
+    const ul = el("ul");
+    for (const i of items) ul.appendChild(el("li", null, i));
+    d.appendChild(ul); head.appendChild(d);
+  }
+  if (DATA.inferred.length) {
+    const b = el("div", "banner");
+    b.appendChild(el("b", null, "Please check: some parts were guessed"));
+    const ul = el("ul");
+    for (const i of DATA.inferred) ul.appendChild(el("li", null, i));
+    b.appendChild(ul); head.appendChild(b);
+  }
+}
+
+/* ---------- selection + views ---------- */
+let selected = null, depPz;
+function select(id) {
+  selected = selected === id ? null : id;
+  for (const c of document.querySelectorAll(".mcard.sel, .card.sel")) c.classList.remove("sel");
+  const drawer = $("#drawer"); drawer.innerHTML = "";
+  $("#canvas-wrap").classList.toggle("with-drawer", !!selected);
+  if (selected) {
+    drawer.appendChild(stepCard(byId[selected], { sel: true }));
+    const n = nodeFor(selected);
+    if (n) n.querySelector(".mcard").classList.add("sel");
+    const lc = $("#list .card[data-id='" + CSS.escape(selected) + "']");
+    if (lc) lc.classList.add("sel");
+  }
+  if (depPz) setTimeout(() => depPz.fit(), 0);
+}
+function nodeFor(id) {
+  const i = DATA.steps.findIndex(s => s.id === id);
+  for (const n of document.querySelectorAll("#dep-pz .node"))
+    if (new RegExp("^flowchart-n" + i + "-").test(n.id)) return n;
+  return null;
+}
+function setView(v) {
+  $("#view-canvas").style.display = v === "canvas" ? "" : "none";
+  $("#view-list").style.display = v === "list" ? "block" : "none";
+  $("#v-canvas").setAttribute("aria-pressed", v === "canvas");
+  $("#v-list").setAttribute("aria-pressed", v === "list");
+  if (v === "canvas" && depPz) depPz.fit();
+}
+
+/* ---------- boot ---------- */
+async function boot() {
+  renderHead();
+  const list = $("#list");
+  for (const id of DATA.order) {
+    const c = stepCard(byId[id]);
+    c.addEventListener("click", () => select(id));
+    list.appendChild(c);
+  }
+  $("#v-canvas").onclick = () => setView("canvas");
+  $("#v-list").onclick = () => setView("list");
+
+  const dec = $("#decisions");
+  if (!DATA.decisions.length) dec.style.display = "none";
+  for (const d of DATA.decisions) {
+    const b = el("div", "decision"); b.appendChild(el("b", null, d.title)); b.appendChild(el("p", null, d.detail)); dec.appendChild(b);
+  }
+
+  mermaid.initialize({
+    startOnLoad: false, securityLevel: "strict", theme: "base",
+    themeVariables: {
+      fontFamily: getComputedStyle(document.body).fontFamily, fontSize: "14px",
+      lineColor: "#8b5a44", primaryColor: "#fff8ee", primaryBorderColor: "#8b5a44",
+      primaryTextColor: "#4a2f23", edgeLabelBackground: "#fdf1e3",
+    },
+    flowchart: { htmlLabels: true, curve: "basis", nodeSpacing: 36, rankSpacing: 70, padding: 6, useMaxWidth: false },
+  });
+  const draw = async (id, src) => (await mermaid.render(id, src)).svg;
+
+  depPz = panZoom($("#dep-pz"), target => {
+    const n = target.closest(".node");
+    if (!n) return;
+    const m = /^flowchart-n(\d+)-/.exec(n.id);
+    if (m) select(DATA.steps[+m[1]].id);
+  });
+  toolbar("dep-pz", depPz);
+  const treePz = panZoom($("#tree-pz"));
+  toolbar("tree-pz", treePz);
+  const archPz = panZoom($("#arch-pz"));
+  toolbar("arch-pz", archPz);
+
+  const fail = (host, e) => { host.appendChild(el("div", "err", "Could not draw this diagram: " + (e && e.message || e))); };
+  try { if (DATA.steps.length) depPz.set(await draw("dep", DATA.dep_mermaid)); else $("#dep-pz").appendChild(el("div", "pz-empty", "No steps in this plan")); } catch (e) { fail($("#dep-pz"), e); }
+  try { if (DATA.n_files) treePz.set(await draw("tree", DATA.tree_mermaid)); else $("#tree-pz").appendChild(el("div", "pz-empty", "No files listed")); } catch (e) { fail($("#tree-pz"), e); }
+
+  const arch = DATA.architecture, rendered = {};
+  const showArch = async which => {
+    $("#a-before").setAttribute("aria-pressed", which === "before");
+    $("#a-after").setAttribute("aria-pressed", which === "after");
+    const src = arch[which];
+    for (const e of $("#arch-pz").querySelectorAll(".pz-empty,.err")) e.remove();
+    if (!src) { archPz.stage.innerHTML = ""; $("#arch-pz").appendChild(el("div", "pz-empty", "No " + which + " diagram provided")); return; }
+    try {
+      if (!rendered[which]) rendered[which] = await draw("arch-" + which, src);
+      archPz.set(rendered[which]);
+    } catch (e) { fail($("#arch-pz"), e); }
+  };
+  $("#a-before").onclick = () => showArch("before");
+  $("#a-after").onclick = () => showArch("after");
+  await showArch("after");
+  window.addEventListener("resize", () => depPz.fit());
+  document.documentElement.dataset.ready = "1";
+}
+boot();
+</script>
+</body>
+</html>
