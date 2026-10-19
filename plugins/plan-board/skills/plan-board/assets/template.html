@@ -20,6 +20,11 @@
   --orange: #fbd29a;
   --orange-deep: #f6b872;
   --orange-soft: #fde6c4;
+  --blue: #b9d0f5;
+  --blue-soft: #e3edfc;
+  --pink: #f7bfc6;
+  --pink-deep: #f2a3a8;
+  --pink-soft: #fde0e3;
   --orange-strong: #e8782a;
   --stroke: 2.5px;
   --radius: 16px;
@@ -44,8 +49,12 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .tab { font-family: var(--mono); font-weight: 700; font-size: .85rem; background: var(--paper); border: var(--stroke) solid var(--line); border-bottom: 0; border-radius: 10px 10px 0 0; padding: 2px 12px; margin-bottom: -2.5px; white-space: nowrap; }
 .tab b { margin-left: 8px; }
 .nav { font-family: var(--mono); font-weight: 700; letter-spacing: .25em; align-self: center; font-size: .9rem; }
-.addr { flex: 1; height: 16px; background: var(--paper); border: 2px solid var(--line); border-radius: 999px; align-self: center; min-width: 40px; }
+.addr { flex: 1; height: 16px; background: var(--blue-soft); border: 2px solid var(--line); border-radius: 999px; align-self: center; min-width: 40px; }
 .titlebar .ic { align-self: center; margin: 0; width: 20px; height: 20px; }
+#head-win { box-shadow: 5px 5px 0 var(--pink-deep); }
+.win.w-steps { box-shadow: 5px 5px 0 var(--purple-deep); }
+.win.w-arch { box-shadow: 5px 5px 0 var(--blue); }
+.win.w-files { box-shadow: 5px 5px 0 var(--orange-deep); }
 .body { padding: 16px 18px; position: relative; }
 .body > .bar { margin-top: 0; }
 .sub { font-family: var(--mono); font-weight: 700; font-size: 1rem; display: flex; align-items: center; gap: 8px; }
@@ -59,6 +68,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .stat { border: 2px solid var(--line); border-radius: 14px; background: var(--orange-soft); padding: 5px 12px; min-width: 84px; text-align: center; }
 .stat b { display: block; font-size: 1.2rem; font-family: var(--mono); }
 .stat span { font-family: var(--mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); }
+.stat.blue { background: var(--blue); }
+.stat.pink { background: var(--pink); }
 .stat.warn { background: var(--purple); border-style: dashed; }
 .bubble { position: relative; background: var(--paper); border: var(--stroke) solid var(--line); border-radius: 14px; padding: 6px 12px; display: flex; flex-direction: column; align-items: center; gap: 2px; margin-bottom: 10px; }
 .bubble::after { content: ""; position: absolute; left: 50%; bottom: -11px; margin-left: -8px; width: 12px; height: 12px; background: var(--paper); border-right: var(--stroke) solid var(--line); border-bottom: var(--stroke) solid var(--line); transform: rotate(45deg) skew(10deg, 10deg); }
@@ -67,7 +78,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 details.notes { margin-top: 12px; }
 details.notes summary { cursor: pointer; font-weight: 700; font-family: var(--mono); }
 details.notes ul { margin: 6px 0 0; padding-left: 20px; }
-.dialog { margin-top: 14px; max-width: 460px; border: var(--stroke) solid var(--line); border-radius: 14px; background: var(--paper); padding: 12px 16px; text-align: center; font-family: var(--mono); box-shadow: 4px 4px 0 var(--orange); }
+.dialog { margin-top: 14px; max-width: 460px; border: var(--stroke) solid var(--line); border-radius: 14px; background: var(--paper); padding: 12px 16px; text-align: center; font-family: var(--mono); box-shadow: 4px 4px 0 var(--blue); }
 .dialog ul { text-align: left; margin: 6px 0 10px; padding-left: 20px; font-size: .85rem; }
 .dialog .pill { justify-content: center; }
 .dialog p { margin: 0 0 6px; font-weight: 700; }
@@ -82,7 +93,7 @@ details.notes ul { margin: 6px 0 0; padding-left: 20px; }
 .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .tools { display: flex; gap: 6px; margin-bottom: 6px; }
 .tools button { border: 2px solid var(--line); background: var(--paper); border-radius: 999px; min-width: 34px; height: 34px; font-family: var(--mono); font-weight: 700; padding: 0 12px; }
-.tools button:hover { background: var(--orange-soft); }
+.tools button:hover { background: var(--blue); }
 
 /* pan-zoom */
 .pz {
@@ -116,11 +127,12 @@ details.notes ul { margin: 6px 0 0; padding-left: 20px; }
 }
 .num, .mnum { display: inline-grid; place-items: center; min-width: 26px; height: 26px; border-radius: 50%; background: var(--orange); border: 2px solid var(--line); color: var(--ink); font-family: var(--mono); font-size: .8rem; font-weight: 700; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; align-items: center; }
-.chip { border: 2px solid var(--line); border-radius: 999px; padding: 1px 10px; font-size: .78rem; background: var(--lilac); }
+.chip { border: 2px solid var(--line); border-radius: 999px; padding: 1px 10px; font-size: .78rem; background: var(--blue-soft); }
 .chip.dep { cursor: pointer; }
+.chip.dep:hover { background: var(--blue); }
 .spill { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 1px 10px; font-family: var(--mono); font-size: .68rem; font-weight: 700; border: 2px solid var(--line); background: var(--purple); text-transform: uppercase; letter-spacing: .04em; }
 .spill.in_progress { background: var(--orange); }
-.spill.done { background: var(--purple-deep); }
+.spill.done { background: var(--pink-deep); }
 .spill.done::before, .flag.crit::before, .flag.gap::before { content: ""; width: 12px; height: 12px; background-size: contain; background-repeat: no-repeat; }
 .spill.done::before { background-image: var(--i-heart); }
 .flag { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 1px 9px; font-family: var(--mono); font-size: .66rem; font-weight: 700; border: 2px solid var(--line); text-transform: uppercase; }
@@ -133,7 +145,7 @@ details.notes ul { margin: 6px 0 0; padding-left: 20px; }
 .sec > b { font-family: var(--mono); font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); display: block; margin-bottom: 3px; }
 .files { list-style: none; margin: 0; padding: 0; font-family: var(--mono); font-size: .82rem; }
 .files li { padding: 1px 0; word-break: break-all; }
-.gwt { border-left: 4px solid var(--purple-deep); padding: 2px 0 2px 10px; margin: 6px 0; font-size: .9rem; }
+.gwt { border-left: 4px solid var(--pink-deep); padding: 2px 0 2px 10px; margin: 6px 0; font-size: .9rem; }
 .gwt div span { font-family: var(--mono); font-weight: 700; color: var(--orange-strong); display: inline-block; min-width: 3.8em; }
 .nocov { border: 2px dashed var(--line); border-radius: 12px; padding: 6px 10px; background: var(--orange-soft); font-size: .88rem; }
 .list { display: grid; gap: 18px; padding: 8px 10px; }
@@ -141,7 +153,7 @@ details.notes ul { margin: 6px 0 0; padding-left: 20px; }
 
 /* mermaid cards (inside the svg) */
 .mcard { position: relative; width: 220px; background: #fffdf8; border: var(--stroke) solid var(--line); border-radius: var(--radius); padding: 8px 12px; text-align: left; font-family: var(--font); font-size: 14px; line-height: 1.3; color: var(--ink); white-space: normal; box-shadow: 3px 3px 0 var(--purple-soft); }
-.mcard.st-done { background: #efe8fb; }
+.mcard.st-done { background: var(--pink-soft); }
 .mcard.st-in_progress { background: #fff1d9; }
 .mtop { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .mtitle { font-weight: 800; }
@@ -149,6 +161,7 @@ details.notes ul { margin: 6px 0 0; padding-left: 20px; }
 .node { cursor: pointer; }
 .node .label, .node .nodeLabel { color: var(--ink); }
 #tree-pz .node, #arch-pz .node { cursor: grab; }
+#arch-pz { background-color: var(--blue-soft); background-image: radial-gradient(var(--blue) 1.4px, transparent 1.4px); }
 .edgeLabel, .labelBkg { background: transparent !important; }
 
 /* icons: line-drawn with pastel fills (CSS vars filled in by script) */
@@ -156,7 +169,8 @@ details.notes ul { margin: 6px 0 0; padding-left: 20px; }
 
 /* decisions */
 .decisions { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 14px; }
-.decision { border: 2px solid var(--line); border-radius: 14px; padding: 8px 12px; background: var(--lilac); }
+.decision { border: 2px solid var(--line); border-radius: 14px; padding: 8px 12px; background: var(--blue-soft); }
+.decision:nth-child(even) { background: var(--pink-soft); }
 .decision b { display: block; font-family: var(--mono); }
 .decision p { margin: 2px 0 0; font-size: .9rem; color: var(--ink-soft); }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--mono); font-size: .8rem; }
@@ -171,7 +185,7 @@ details.notes ul { margin: 6px 0 0; padding-left: 20px; }
   <div class="body" id="head"></div>
 </div>
 
-<section class="win">
+<section class="win w-steps">
   <div class="titlebar"><span class="tab">steps <b>×</b></span><span class="nav">← → ↻</span><span class="addr"></span><span class="ic star"></span></div>
   <div class="body">
   <div class="bar">
@@ -195,7 +209,7 @@ details.notes ul { margin: 6px 0 0; padding-left: 20px; }
   </div>
 </section>
 
-<section class="win">
+<section class="win w-arch">
   <div class="titlebar"><span class="tab">architecture <b>×</b></span><span class="nav">← → ↻</span><span class="addr"></span><span class="ic star"></span></div>
   <div class="body">
   <div class="bar">
@@ -211,7 +225,7 @@ details.notes ul { margin: 6px 0 0; padding-left: 20px; }
   </div>
 </section>
 
-<section class="win">
+<section class="win w-files">
   <div class="titlebar"><span class="tab">files touched <b>×</b></span><span class="nav">← → ↻</span><span class="addr"></span><span class="ic star"></span></div>
   <div class="body">
   <div class="bar">
@@ -245,17 +259,17 @@ const label = s => s.replace(/_/g, " ");
 
 /* ---------- line-drawn icons (CSS background images) ---------- */
 const ICONS = {
-  create: "<path d='M6 3h8l4 4v14H6z' fill='#fff7ee'/><path d='M14 3v4h4'/><circle cx='12' cy='15' r='4.2' fill='#c9bbee'/><path d='M12 13v4M10 15h4'/>",
+  create: "<path d='M6 3h8l4 4v14H6z' fill='#fff7ee'/><path d='M14 3v4h4'/><circle cx='12' cy='15' r='4.2' fill='#b9d0f5'/><path d='M12 13v4M10 15h4'/>",
   edit: "<path d='M4 20l1-4L16 5l3 3L8 19z' fill='#fbd29a'/><path d='M14 7l3 3'/><path d='M4 20l1-4 3 3z' fill='#f9c28e'/>",
-  delete: "<path d='M7 8l1 12h8l1-12z' fill='#f9c28e'/><path d='M5 8h14M9 8V5h6v3M10 12v5M14 12v5'/>",
+  delete: "<path d='M7 8l1 12h8l1-12z' fill='#f7bfc6'/><path d='M5 8h14M9 8V5h6v3M10 12v5M14 12v5'/>",
   folder: "<path d='M3 7h6l2 2h10v10H3z' fill='#fbd29a'/><path d='M6 13h5' stroke='#fff7ee'/>",
-  doc: "<path d='M6 3h8l4 4v14H6z' fill='#c9bbee'/><path d='M14 3v4h4M9 13h6M9 17h4'/>",
+  doc: "<path d='M6 3h8l4 4v14H6z' fill='#b9d0f5'/><path d='M14 3v4h4M9 13h6M9 17h4'/>",
   star: "<path d='M12 3l2.7 5.6 6.1.8-4.5 4.2 1.1 6-5.4-2.9-5.4 2.9 1.1-6L3.2 9.4l6.1-.8z' fill='#fbd29a'/>",
-  heart: "<path d='M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z' fill='#b9a2e3'/>",
+  heart: "<path d='M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z' fill='#f2a3a8'/>",
   mail: "<rect x='3' y='6' width='18' height='13' rx='2' fill='#fbd29a'/><path d='M3 8l9 6 9-6'/>",
-  xcircle: "<circle cx='12' cy='12' r='9' fill='#f9c28e'/><path d='M9 9l6 6M15 9l-6 6'/>",
-  check: "<circle cx='12' cy='12' r='9' fill='#c9bbee'/><path d='M8 12.5l3 3 5-6'/>",
-  globe: "<circle cx='12' cy='12' r='9' fill='#efe9fb'/><path d='M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18'/>",
+  xcircle: "<circle cx='12' cy='12' r='9' fill='#f7bfc6'/><path d='M9 9l6 6M15 9l-6 6'/>",
+  check: "<circle cx='12' cy='12' r='9' fill='#b9d0f5'/><path d='M8 12.5l3 3 5-6'/>",
+  globe: "<circle cx='12' cy='12' r='9' fill='#b9d0f5'/><path d='M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18'/>",
   sparkle: "<path d='M12 3c.6 5 1.8 6.4 7 7-5.2.6-6.4 2-7 7-.6-5-1.8-6.4-7-7 5.2-.6 6.4-2 7-7z' fill='#fff7ee'/>",
 };
 function iconSvg(name) {
@@ -397,7 +411,7 @@ function heartsBubble(done, total) {
   const b = el("div", "bubble");
   const row = el("div");
   for (let i = 0; i < 5; i++) {
-    const fill = i < on ? "#b9a2e3" : "#fff7ee";
+    const fill = i < on ? "#f2a3a8" : "#fff7ee";
     row.insertAdjacentHTML("beforeend", "<svg viewBox='0 0 24 24' stroke='#7a3b3b' stroke-width='1.8' stroke-linejoin='round'><path d='M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z' fill='" + fill + "'/></svg>");
   }
   b.appendChild(row);
@@ -406,7 +420,7 @@ function heartsBubble(done, total) {
 }
 function renderHead() {
   const head = $("#head");
-  head.insertAdjacentHTML("afterbegin", "<svg class='deco' viewBox='0 0 150 70' fill='#fff7ee' stroke='#7a3b3b' stroke-width='2.2' stroke-linejoin='round' stroke-linecap='round'><path d='M20 52c-8 0-12-5-10-10 1-5 7-7 12-5 2-8 14-10 19-3 6-3 14 1 14 8 6 0 8 6 4 10z'/><path d='M95 28c.7 6 2 7.5 8 8-6 .7-7.3 2.3-8 8-.7-5.700-2-7.300-8-8 6-.5 7.300-2 8-8z'/><path d='M126 10c.5 4 1.300 5 5 5.500-3.700.5-4.500 1.500-5 5.500-.5-4-1.300-5-5-5.500 3.700-.5 4.500-1.500 5-5.500z'/></svg>");
+  head.insertAdjacentHTML("afterbegin", "<svg class='deco' viewBox='0 0 150 70' fill='#e3edfc' stroke='#7a3b3b' stroke-width='2.2' stroke-linejoin='round' stroke-linecap='round'><path d='M20 52c-8 0-12-5-10-10 1-5 7-7 12-5 2-8 14-10 19-3 6-3 14 1 14 8 6 0 8 6 4 10z'/><path d='M95 28c.7 6 2 7.5 8 8-6 .7-7.3 2.3-8 8-.7-5.700-2-7.300-8-8 6-.5 7.300-2 8-8z'/><path fill='#f7bfc6' d='M126 10c.5 4 1.300 5 5 5.500-3.700.5-4.500 1.500-5 5.500-.5-4-1.300-5-5-5.500 3.700-.5 4.500-1.500 5-5.500z'/></svg>");
   const top = el("div", "head");
   const t = el("div");
   t.appendChild(el("h1", null, DATA.title));
@@ -416,8 +430,8 @@ function renderHead() {
   const stat = (v, l, cls) => { const d = el("div", "stat " + (cls || "")); d.appendChild(el("b", null, v)); d.appendChild(el("span", null, l)); return d; };
   const done = DATA.steps.filter(s => s.status === "done").length;
   stats.appendChild(heartsBubble(done, DATA.steps.length));
-  stats.appendChild(stat(DATA.steps.length, "steps"));
-  stats.appendChild(stat(DATA.n_files, "files"));
+  stats.appendChild(stat(DATA.steps.length, "steps", "blue"));
+  stats.appendChild(stat(DATA.n_files, "files", "pink"));
   stats.appendChild(stat(DATA.complexity, "complexity"));
   const gaps = DATA.steps.filter(s => !s.covered).length;
   stats.appendChild(stat((DATA.steps.length - gaps) + "/" + DATA.steps.length, "covered", gaps ? "warn" : ""));

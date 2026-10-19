@@ -279,9 +279,9 @@ def file_tree_mermaid(plan):
     walk(tree, "t0")
     lines += [
         "  classDef dir fill:#fff3e0,stroke:#8b5a44,stroke-width:3px,color:#5a2d2d;",
-        "  classDef create fill:#e4daf6,stroke:#7a3b3b,stroke-width:2.5px,color:#5a2d2d;",
+        "  classDef create fill:#dbe8fb,stroke:#7a3b3b,stroke-width:2.5px,color:#5a2d2d;",
         "  classDef edit fill:#ffe9cf,stroke:#7a3b3b,stroke-width:2.5px,color:#5a2d2d;",
-        "  classDef delete fill:#f9c28e,stroke:#7a3b3b,stroke-width:2.5px,color:#5a2d2d;",
+        "  classDef delete fill:#f9ccd2,stroke:#7a3b3b,stroke-width:2.5px,color:#5a2d2d;",
     ]
     return "\n".join(lines)
 
