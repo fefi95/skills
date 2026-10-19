@@ -240,10 +240,10 @@ def dependency_mermaid(plan, an):
             if (d, s["id"]) in an["crit_edges"]:
                 crit_links.append(link_i)
             link_i += 1
-    lines.append("  classDef card fill:transparent,stroke:transparent,color:#4a2f23;")
+    lines.append("  classDef card fill:transparent,stroke:transparent,color:#5a2d2d;")
     if crit_links:
         lines.append(
-            f"  linkStyle {','.join(map(str, crit_links))} stroke:#b5502f,stroke-width:4px;"
+            f"  linkStyle {','.join(map(str, crit_links))} stroke:#e0665f,stroke-width:4px;"
         )
     return "\n".join(lines)
 
@@ -278,10 +278,10 @@ def file_tree_mermaid(plan):
     lines.append('  t0["<span class=\'ic folder\'></span>project"]:::dir')
     walk(tree, "t0")
     lines += [
-        "  classDef dir fill:#fff3e0,stroke:#8b5a44,stroke-width:3px,color:#4a2f23;",
-        "  classDef create fill:#e4f1d8,stroke:#5b8a3c,stroke-width:3px,color:#2f4a1e;",
-        "  classDef edit fill:#fff0c2,stroke:#b08a1a,stroke-width:3px,color:#5a4608;",
-        "  classDef delete fill:#fbdcd5,stroke:#b5502f,stroke-width:3px,color:#6b2410;",
+        "  classDef dir fill:#fff3e0,stroke:#8b5a44,stroke-width:3px,color:#5a2d2d;",
+        "  classDef create fill:#dfe5f7,stroke:#7a3b3b,stroke-width:2.5px,color:#5a2d2d;",
+        "  classDef edit fill:#ffe9cf,stroke:#7a3b3b,stroke-width:2.5px,color:#5a2d2d;",
+        "  classDef delete fill:#f7c4c0,stroke:#7a3b3b,stroke-width:2.5px,color:#5a2d2d;",
     ]
     return "\n".join(lines)
 
