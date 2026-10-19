@@ -7,7 +7,7 @@ description: Turn an agreed implementation plan into a visual HTML report (step 
 
 One YAML file is the single source of truth. The HTML report and the implementing agent both read it.
 
-Script: `scripts/plan_board.py` (Python 3 + PyYAML, next to this file). Everything is offline and self-contained.
+Script: `scripts/plan_board.py` (Python 3 + PyYAML). Below, `<skill>` means the folder that holds this `SKILL.md`. Everything is offline and self-contained.
 
 ## When to use
 Only when the user asks, after they have reviewed and agreed to a plan. Do not start on your own.

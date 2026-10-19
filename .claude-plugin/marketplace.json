@@ -1,0 +1,16 @@
+{
+  "name": "fefi95-skills",
+  "owner": {
+    "name": "fefi95"
+  },
+  "plugins": [
+    {
+      "name": "plan-board",
+      "source": "./plugins/plan-board",
+      "description": "Turn an agreed implementation plan into a visual HTML board and a YAML hand-off file."
+    }
+  ],
+  "metadata": {
+    "description": "Agent skills and plugins for Claude Code."
+  }
+}
