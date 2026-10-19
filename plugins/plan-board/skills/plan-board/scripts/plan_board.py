@@ -243,7 +243,7 @@ def dependency_mermaid(plan, an):
     lines.append("  classDef card fill:transparent,stroke:transparent,color:#5a2d2d;")
     if crit_links:
         lines.append(
-            f"  linkStyle {','.join(map(str, crit_links))} stroke:#e0665f,stroke-width:4px;"
+            f"  linkStyle {','.join(map(str, crit_links))} stroke:#e8782a,stroke-width:4px;"
         )
     return "\n".join(lines)
 
@@ -279,9 +279,9 @@ def file_tree_mermaid(plan):
     walk(tree, "t0")
     lines += [
         "  classDef dir fill:#fff3e0,stroke:#8b5a44,stroke-width:3px,color:#5a2d2d;",
-        "  classDef create fill:#dfe5f7,stroke:#7a3b3b,stroke-width:2.5px,color:#5a2d2d;",
+        "  classDef create fill:#e4daf6,stroke:#7a3b3b,stroke-width:2.5px,color:#5a2d2d;",
         "  classDef edit fill:#ffe9cf,stroke:#7a3b3b,stroke-width:2.5px,color:#5a2d2d;",
-        "  classDef delete fill:#f7c4c0,stroke:#7a3b3b,stroke-width:2.5px,color:#5a2d2d;",
+        "  classDef delete fill:#f9c28e,stroke:#7a3b3b,stroke-width:2.5px,color:#5a2d2d;",
     ]
     return "\n".join(lines)
 

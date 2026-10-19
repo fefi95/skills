@@ -78,4 +78,4 @@ When implementing from the YAML:
 5. To see progress, run `render` again.
 
 ## What the report shows
-Header (steps, files, complexity, progress ring, coverage, open questions and risks) · zoomable canvas of step cards joined by arrows, with the critical path (longest dependency chain) in thick terracotta · Canvas/List toggle · per-step card with files, Given/When/Then, status, and a dashed red "no criteria" flag · architecture decisions with a Before/After diagram · file tree colored by create/edit/delete.
+Header (steps, files, complexity, progress ring, coverage, open questions and risks) · zoomable canvas of step cards joined by arrows, with the critical path (longest dependency chain) in thick orange · Canvas/List toggle · per-step card with files, Given/When/Then, status, and a dashed red "no criteria" flag · architecture decisions with a Before/After diagram · file tree colored by create/edit/delete.
