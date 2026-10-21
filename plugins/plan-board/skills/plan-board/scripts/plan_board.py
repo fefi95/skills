@@ -17,7 +17,7 @@ import re
 import subprocess
 import sys
 import webbrowser
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 try:
     import yaml
@@ -45,9 +45,54 @@ def load_plan(path):
     return normalize(raw)
 
 
+def write_atomic(path, text):
+    """Write via a temp file and rename, so a failure never truncates the target."""
+    path = Path(path)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, path)
+
+
 def save_plan(path, plan):
-    with open(path, "w", encoding="utf-8") as f:
-        yaml.safe_dump(plan, f, sort_keys=False, allow_unicode=True, width=100)
+    write_atomic(path, yaml.safe_dump(plan, sort_keys=False, allow_unicode=True, width=100))
+
+
+def set_step_status(text, step_id, status):
+    """Return `text` with one step's status changed. Touches only that value, so
+    comments, unknown keys and formatting elsewhere in the file are kept."""
+    root = yaml.compose(text)
+    steps = None
+    if isinstance(root, yaml.MappingNode):
+        for k, v in root.value:
+            if k.value == "steps" and isinstance(v, yaml.SequenceNode):
+                steps = v.value
+    elif isinstance(root, yaml.SequenceNode):
+        steps = root.value
+    if steps is None:
+        raise PlanError("plan has no 'steps' list")
+    for node in steps:
+        if not isinstance(node, yaml.MappingNode):
+            continue
+        pairs = {k.value: (k, v) for k, v in node.value if isinstance(k, yaml.ScalarNode)}
+        if "id" not in pairs or str(pairs["id"][1].value).strip() != step_id:
+            continue
+        if "status" in pairs:
+            v = pairs["status"][1]
+            return text[:v.start_mark.index] + status + text[v.end_mark.index:]
+        if node.flow_style:  # {id: a, ...}: add before the closing brace
+            at = node.end_mark.index - 1
+            return text[:at] + ", status: " + status + text[at:]
+        last = node.value[-1][1]
+        at = last.end_mark.index
+        if last.end_mark.column != 0:  # inline value: continue to end of its line
+            nl = text.find("\n", at)
+            if nl < 0:
+                text += "\n"
+                nl = len(text) - 1
+            at = nl + 1
+        indent = " " * node.value[0][0].start_mark.column
+        return text[:at] + indent + "status: " + status + "\n" + text[at:]
+    raise PlanError(f"no step with id '{step_id}'")
 
 
 def _str(v):
@@ -69,7 +114,11 @@ def normalize(raw):
     if not isinstance(raw, dict) or not isinstance(raw.get("steps"), list):
         raise PlanError("plan must be a mapping with a 'steps' list")
     meta = raw.get("plan") or {}
+    if not isinstance(meta, dict):
+        raise PlanError("'plan' must be a mapping")
     arch = meta.get("architecture") or {}
+    if not isinstance(arch, dict):
+        raise PlanError("'plan.architecture' must be a mapping with before/after")
     plan = {
         "plan": {
             "title": _str(meta.get("title")) or "Untitled plan",
@@ -103,6 +152,8 @@ def normalize(raw):
             raise PlanError(f"step '{sid}': status must be one of {STATUSES}")
         files = []
         for f in s.get("files") or []:
+            if not isinstance(f, dict):
+                raise PlanError(f"step '{sid}': each file must be a mapping with path and action")
             action = _str(f.get("action")) or "edit"
             if action not in ACTIONS:
                 raise PlanError(f"step '{sid}': file action must be one of {ACTIONS}")
@@ -111,6 +162,8 @@ def normalize(raw):
             files.append({"path": _str(f["path"]), "action": action})
         ac = []
         for a in s.get("acceptance_criteria") or []:
+            if not isinstance(a, dict):
+                raise PlanError(f"step '{sid}': each criterion must have given/when/then")
             ac.append({k: _str(a.get(k)) for k in ("given", "when", "then")})
         plan["steps"].append({
             "id": sid,
@@ -123,6 +176,14 @@ def normalize(raw):
             "inferred": _str_list(s.get("inferred")),
         })
     return plan
+
+
+def path_parts(path):
+    """Split a plan path into folder/file parts. Raises PlanError for non-paths."""
+    parts = tuple(p for p in PurePosixPath(path.replace("\\", "/")).parts if p != ".")
+    if not parts:
+        raise PlanError(f"'{path}' is not a file path")
+    return parts
 
 
 # ------------------------------------------------------------------ analysis
@@ -143,6 +204,14 @@ def analyze(plan):
             if d == s["id"]:
                 raise PlanError(f"step '{s['id']}' depends on itself")
     by_id = {s["id"]: s for s in steps}
+
+    # A path can't be both a file and a folder (breaks the file tree).
+    paths = {path_parts(f["path"]) for s in steps for f in s["files"]}
+    for p in paths:
+        for i in range(1, len(p)):
+            if p[:i] in paths:
+                raise PlanError(
+                    f"'{'/'.join(p[:i])}' is listed as a file but also holds '{'/'.join(p)}'")
 
     # Topological order (stable: ties keep file order). Detects cycles.
     indeg = {i: len(by_id[i]["depends_on"]) for i in ids}
@@ -232,6 +301,7 @@ def dependency_mermaid(plan, an):
             f'<div class="mmeta">{counts} · {len(s["acceptance_criteria"])} criteria</div>'
             f'<div>{crit}{gap}</div></div>'
         )
+        label = label.replace('"', "'")  # titles are already escaped; only our own attributes remain
         lines.append(f'  n{n}["{label}"]:::card')
     link_i, crit_links = 0, []
     for s in steps:
@@ -253,7 +323,7 @@ def file_tree_mermaid(plan):
     for s in plan["steps"]:
         for f in s["files"]:
             node = tree
-            parts = Path(f["path"]).parts
+            parts = path_parts(f["path"])
             for p in parts[:-1]:
                 node = node.setdefault(p, {})
             node[parts[-1]] = f["action"]  # str leaf = file
@@ -320,7 +390,10 @@ def render_html(plan):
     data = build_data(plan, an)
     tpl = (ASSETS / "template.html").read_text(encoding="utf-8")
     mermaid_js = (ASSETS / "mermaid.min.js").read_text(encoding="utf-8")
-    payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+    payload = json.dumps(data, ensure_ascii=False)
+    for ch, esc in (("<", "\\u003c"), (">", "\\u003e"), ("&", "\\u0026"),
+                    ("\u2028", "\\u2028"), ("\u2029", "\\u2029")):
+        payload = payload.replace(ch, esc)  # data can't open/close HTML tags or comments
     # Function replacements: avoid backslash handling in re/str replacement text.
     out = tpl.replace("/*__DATA__*/null", payload, 1)
     out = out.replace("/*__MERMAID__*/", mermaid_js.replace("</script", "<\\/script"), 1)
@@ -364,7 +437,8 @@ def cmd_render(args):
     out.write_text(page, encoding="utf-8")
     print(f"Report written: {out.resolve()}")
     if args.open:
-        webbrowser.open(out.resolve().as_uri())
+        if not webbrowser.open(out.resolve().as_uri()):
+            print("Could not open a browser; open the file above yourself.")
 
 
 def cmd_validate(args):
@@ -380,14 +454,10 @@ def cmd_validate(args):
 def cmd_status(args):
     if args.status not in STATUSES:
         sys.exit(f"status must be one of {STATUSES}")
-    plan = load_plan(args.plan)
-    for s in plan["steps"]:
-        if s["id"] == args.step_id:
-            s["status"] = args.status
-            break
-    else:
-        sys.exit(f"no step with id '{args.step_id}'")
-    save_plan(args.plan, plan)
+    text = Path(args.plan).read_text(encoding="utf-8")
+    new = set_step_status(text, args.step_id, args.status)
+    normalize(yaml.safe_load(new))  # make sure the edit left a valid plan
+    write_atomic(args.plan, new)
     print(f"{args.step_id}: {args.status}")
 
 
@@ -401,7 +471,7 @@ def parse_feature(text):
     """Parse Gherkin into a plan dict (not yet normalized). One scenario = one step."""
     feature, summary, background = "", [], []
     scenarios, tags, cur, mode = [], [], None, None
-    last_kw = None
+    last_kw, in_doc = None, False
 
     def add_step(target, kw, body):
         nonlocal last_kw
@@ -410,39 +480,54 @@ def parse_feature(text):
         last_kw = kw
         target.append((kw, body))
 
+    def append_to_last(target, extra):
+        if target:
+            kw, body = target[-1]
+            target[-1] = (kw, (body + " " + extra).strip())
+
     for line in text.splitlines():
         s = line.strip()
-        if not s or s.startswith("#") or s.startswith('"""') or s.startswith("```"):
+        if s.startswith('"""') or s.startswith("```"):
+            in_doc = not in_doc  # docstring text belongs to the step above it
+            continue
+        if in_doc:
+            if mode == "scenario" and cur:
+                append_to_last(cur["steps"], s)
+            elif mode == "background":
+                append_to_last(background, s)
+            continue
+        if not s or s.startswith("#"):
             continue
         if s.startswith("@"):
-            tags += s.split()
+            tags += s.split("#")[0].split()
             continue
         if s.startswith("Feature:"):
-            feature, mode = s[8:].strip(), "feature"
+            feature, mode, tags = s[8:].strip(), "feature", []  # tags above Feature aren't scenario tags
             continue
         if s.startswith("Background:"):
-            mode, last_kw = "background", None
+            mode, last_kw, tags = "background", None, []
             continue
         if s.startswith("Rule:"):
-            mode = "feature"
+            mode, tags = "feature", []
             continue
         m = _SCEN_RE.match(s)
         if m:
-            cur = {"title": m.group(2).strip(), "tags": tags, "steps": [],
-                   "outline": m.group(1) != "Scenario" and m.group(1) != "Example"}
+            cur = {"title": m.group(2).strip(), "tags": tags, "steps": [], "examples": [],
+                   "outline": m.group(1) not in ("Scenario", "Example")}
             tags, last_kw, mode = [], None, "scenario"
             scenarios.append(cur)
             continue
         if s.startswith("Examples:") or s.startswith("Scenarios:"):
-            mode = "examples"
+            mode, tags = "examples", []  # tags above Examples belong to the table
             continue
-        if mode == "examples" or s.startswith("|"):
-            if mode == "scenario" and cur and cur["steps"]:
-                kw, body = cur["steps"][-1]
-                cur["steps"][-1] = (kw, body + " " + s)
-            elif mode == "background" and background:
-                kw, body = background[-1]
-                background[-1] = (kw, body + " " + s)
+        if s.startswith("|"):
+            cells = [c.strip() for c in s.strip("|").split("|")]
+            if mode == "examples" and cur:
+                cur["examples"].append(cells)
+            elif mode == "scenario" and cur:
+                append_to_last(cur["steps"], s)
+            elif mode == "background":
+                append_to_last(background, s)
             continue
         m = _STEP_RE.match(s)
         if m and mode in ("scenario", "background"):
@@ -465,13 +550,12 @@ def parse_feature(text):
             sid, k = f"{base}-{k}", k + 1
         used.add(sid)
         # Group Given/When/Then into criteria; a new When after a Then starts a new one.
-        ac, curr, bg_given = [], None, [b for kw, b in background if kw == "Given"]
+        bg_given = [b for kw, b in background if kw == "Given"]
+        ac, curr = [], None
         for kw, body in sc["steps"]:
-            if curr is None or (kw == "When" and curr["then"]):
+            if curr is None or (kw == "When" and curr["then"]) or \
+                    (kw == "Given" and (curr["when"] or curr["then"])):
                 curr = {"given": list(bg_given), "when": [], "then": []}
-                ac.append(curr)
-            if kw == "Given" and (curr["when"] or curr["then"]):
-                curr = {"given": [], "when": [], "then": []}
                 ac.append(curr)
             curr[kw.lower()].append(body)
         files = []
@@ -480,6 +564,13 @@ def parse_feature(text):
             if action in ACTIONS and path:
                 files.append({"path": path, "action": action})
         deps = [d for v in tagmap.get("depends", []) for d in v.split(",") if d]
+        notes = ""
+        if sc["examples"]:
+            head, *rows = sc["examples"]
+            notes = "Examples: " + " / ".join(
+                ", ".join(f"{h}={c}" for h, c in zip(head, row)) for row in rows)
+        elif sc["outline"]:
+            notes = "Scenario outline without an examples table."
         steps.append({
             "id": sid,
             "title": sc["title"] or f"Scenario {n + 1}",
@@ -488,8 +579,7 @@ def parse_feature(text):
             "acceptance_criteria": [
                 {k2: "; ".join(c[k2]) for k2 in ("given", "when", "then")} for c in ac
             ],
-            "notes": "Scenario outline: the examples table is folded into the criteria text."
-            if sc["outline"] else "",
+            "notes": notes,
             "status": "not_started",
         })
     if scenarios and not any(s["depends_on"] for s in steps):

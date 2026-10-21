@@ -22,7 +22,7 @@ Only when the user asks, after they have reviewed and agreed to a plan. Do not s
 3. **Check it:** `python3 <skill>/scripts/plan_board.py validate plans/<slug>.yaml`. Fix errors. Warnings (missing criteria, no files, inferred items) go to the user.
 4. **Show the user what you guessed** before building. List every item in `plan.inferred` in plain words and let them correct it. Once confirmed, remove those entries (and any step-level `inferred`).
 5. **Build the report:** `python3 <skill>/scripts/plan_board.py render plans/<slug>.yaml --open`
-   - Writes to `.claude/tmp/plan-board/<slug>.html` and adds `.claude/tmp/` to the repo's `.gitignore` if missing.
+   - Writes to `.claude/tmp/plan-board/<slug>.html` (relative to where you run it, so run it from the repo root) and adds `.claude/tmp/` to the repo's `.gitignore` if missing.
    - If the browser can't open (cloud/headless), tell the user the path. Never publish it as an artifact.
 6. **Edit loop.** For "move step 3 earlier", "add a note about caching" and the like: edit the YAML, run `validate`, run `render` again. Never edit the HTML. The layout stays identical; only the content changes.
 7. **Hand-off.** Once the user accepts, the YAML is the brief for the implementing agent (see below).
@@ -67,12 +67,12 @@ See `examples/caching.plan.yaml` and `examples/login.feature`.
 - Keep architecture diagrams small (under about 12 nodes). Quote labels with special characters.
 
 ## Gherkin rules
-Each `Scenario` becomes one step. `And`/`But` continue the previous keyword. `Background` Given lines are added to every scenario. A second When after a Then starts another criterion. Optional tags set what Gherkin can't express: `@id:name`, `@depends:id1,id2`, `@file:create:path/to/file`.
+Each `Scenario` becomes one step. `And`/`But` continue the previous keyword. `Background` Given lines are added to every scenario. A second When after a Then starts another criterion. Tags above `Feature:` or `Examples:` are ignored. An examples table is summarised in the step's notes. Optional tags set what Gherkin can't express: `@id:name`, `@depends:id1,id2`, `@file:create:path/to/file`.
 
 ## Agent hand-off
 When implementing from the YAML:
 1. Do steps in dependency order (a step starts only when every `depends_on` step is `done`).
-2. Before starting a step, run `plan_board.py status FILE STEP_ID in_progress`. After its acceptance criteria pass, run `... done`. Use this command, not hand edits, so the file stays valid.
+2. Before starting a step, run `plan_board.py status FILE STEP_ID in_progress`. After its acceptance criteria pass, run `... done`. Use this command, not hand edits. It changes only that one `status:` line, so comments and extra keys stay, and it refuses to write a file that wouldn't validate.
 3. Treat `acceptance_criteria` as the tests to satisfy, and `notes` as context.
 4. If the plan turns out wrong, stop and tell the user. Don't silently change the YAML structure.
 5. To see progress, run `render` again.

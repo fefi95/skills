@@ -365,7 +365,7 @@ function stepCard(s, opts) {
     chips.appendChild(el("span", null, "after"));
     for (const d of s.depends_on) {
       const ch = el("span", "chip dep", byId[d].num + " · " + byId[d].title);
-      ch.addEventListener("click", () => select(d));
+      ch.addEventListener("click", e => { e.stopPropagation(); select(d); });
       chips.appendChild(ch);
     }
     c.appendChild(chips);
@@ -469,6 +469,7 @@ function renderHead() {
 /* ---------- selection + views ---------- */
 let selected = null, depPz;
 function select(id) {
+  const wasOpen = selected !== null;
   selected = selected === id ? null : id;
   for (const c of document.querySelectorAll(".mcard.sel, .card.sel")) c.classList.remove("sel");
   const drawer = $("#drawer"); drawer.innerHTML = "";
@@ -480,7 +481,7 @@ function select(id) {
     const lc = $("#list .card[data-id='" + CSS.escape(selected) + "']");
     if (lc) lc.classList.add("sel");
   }
-  if (depPz) setTimeout(() => depPz.fit(), 0);
+  if (depPz && wasOpen !== (selected !== null)) setTimeout(() => depPz.fit(), 0);  // only when the drawer opens/closes
 }
 function nodeFor(id) {
   const i = DATA.steps.findIndex(s => s.id === id);
@@ -523,7 +524,10 @@ async function boot() {
     },
     flowchart: { htmlLabels: true, curve: "basis", nodeSpacing: 36, rankSpacing: 70, padding: 6, useMaxWidth: false },
   });
-  const draw = async (id, src) => (await mermaid.render(id, src)).svg;
+  const draw = async (id, src) => {
+    try { return (await mermaid.render(id, src)).svg; }
+    finally { const junk = document.getElementById("d" + id); if (junk) junk.remove(); }  // mermaid leaves this behind on errors
+  };
 
   depPz = panZoom($("#dep-pz"), target => {
     const n = target.closest(".node");
@@ -547,6 +551,7 @@ async function boot() {
     $("#a-after").setAttribute("aria-pressed", which === "after");
     const src = arch[which];
     for (const e of $("#arch-pz").querySelectorAll(".pz-empty,.err")) e.remove();
+    archPz.stage.innerHTML = "";
     if (!src) { archPz.stage.innerHTML = ""; $("#arch-pz").appendChild(el("div", "pz-empty", "No " + which + " diagram provided")); return; }
     try {
       if (!rendered[which]) rendered[which] = await draw("arch-" + which, src);
