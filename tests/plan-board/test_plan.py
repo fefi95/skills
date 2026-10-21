@@ -105,3 +105,37 @@ def test_path_parts_normalizes():
 
 def test_mermaid_escape():
     assert pb.mm('a "b" <c> & #d') == "a #quot;b#quot; #lt;c#gt; #amp; #35;d"
+
+
+# ---- second review round ----
+
+def test_backticks_are_escaped_for_mermaid():
+    assert "`" not in pb.mm("a `code` b")
+
+
+def test_slugify_never_returns_a_shared_name():
+    a, b = pb.slugify("計画 一"), pb.slugify("計画 二")
+    assert a != b and a.startswith("plan-")
+    assert pb.slugify("Add Caching!") == "add-caching"
+
+
+def test_file_count_merges_equivalent_paths():
+    an, _ = pb.analyze(make_plan({"id": "a", "files": [{"path": "./a.py"}, {"path": "a.py"}]}))
+    assert an["n_files"] == 1
+
+
+def test_same_file_with_different_actions_warns():
+    f = lambda act: [{"path": "a.py", "action": act}]
+    _, warnings = pb.analyze(make_plan({"id": "a", "files": f("create")}, {"id": "b", "files": f("edit")}))
+    assert any("different actions" in w for w in warnings)
+
+
+@pytest.mark.parametrize("meta", [
+    {"open_questions": {"a": 1}},
+    {"risks": {"a": 1}},
+    {"decisions": "x"},
+    {"decisions": ["x"]},
+])
+def test_wrong_shapes_in_plan_section_are_errors(meta):
+    with pytest.raises(pb.PlanError):
+        pb.normalize({"plan": meta, "steps": []})

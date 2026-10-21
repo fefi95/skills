@@ -5,17 +5,22 @@ Commands:
   validate       plan.yaml                     check the plan, print warnings
   render         plan.yaml [--out F] [--open]  build the HTML report
   status         plan.yaml STEP_ID STATUS      update one step's status
+  next           plan.yaml                     list steps in progress or ready
   parse-feature  file.feature [-o plan.yaml]   draft a plan from Gherkin
 
 The YAML file is the single source of truth. Needs Python 3.8+ and PyYAML.
 """
 import argparse
+import copy
+import hashlib
 import html
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import webbrowser
 from pathlib import Path, PurePosixPath
 
@@ -31,6 +36,7 @@ STATUSES = ("not_started", "in_progress", "done")
 COMPLEXITIES = ("low", "medium", "high")
 GITIGNORE_ENTRY = ".claude/tmp/"
 DEFAULT_OUT_DIR = Path(".claude/tmp/plan-board")
+ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
 class PlanError(Exception):
@@ -46,21 +52,49 @@ def load_plan(path):
 
 
 def write_atomic(path, text):
-    """Write via a temp file and rename, so a failure never truncates the target."""
-    path = Path(path)
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)
+    """Write via a temp file in the same folder and rename, so a failure never
+    truncates the target. Follows symlinks, keeps file permissions and line endings."""
+    path = Path(os.path.realpath(path))
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+        if path.exists():
+            shutil.copymode(path, tmp)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def save_plan(path, plan):
     write_atomic(path, yaml.safe_dump(plan, sort_keys=False, allow_unicode=True, width=100))
 
 
+def read_text(path):
+    with open(path, encoding="utf-8", newline="") as f:  # keep CRLF as it is
+        return f.read()
+
+
+def _data_step(data, step_id):
+    steps = data.get("steps") if isinstance(data, dict) else data
+    for s in steps or []:
+        if isinstance(s, dict) and s.get("id") == step_id:
+            return s
+    return None
+
+
 def set_step_status(text, step_id, status):
     """Return `text` with one step's status changed. Touches only that value, so
-    comments, unknown keys and formatting elsewhere in the file are kept."""
-    root = yaml.compose(text)
+    comments, unknown keys and formatting elsewhere in the file are kept. The result
+    is checked: parsed, it must equal the old plan with only that status changed."""
+    try:
+        root = yaml.compose(text)
+    except yaml.YAMLError as e:
+        raise PlanError(f"cannot read the plan as one YAML document: {e}")
     steps = None
     if isinstance(root, yaml.MappingNode):
         for k, v in root.value:
@@ -70,6 +104,8 @@ def set_step_status(text, step_id, status):
         steps = root.value
     if steps is None:
         raise PlanError("plan has no 'steps' list")
+    nl = "\r\n" if "\r\n" in text else "\n"
+    new = None
     for node in steps:
         if not isinstance(node, yaml.MappingNode):
             continue
@@ -78,21 +114,36 @@ def set_step_status(text, step_id, status):
             continue
         if "status" in pairs:
             v = pairs["status"][1]
-            return text[:v.start_mark.index] + status + text[v.end_mark.index:]
-        if node.flow_style:  # {id: a, ...}: add before the closing brace
+            gap = "" if v.start_mark.index == 0 or text[v.start_mark.index - 1] in " \t" else " "
+            new = text[:v.start_mark.index] + gap + status + text[v.end_mark.index:]
+        elif node.flow_style:  # {id: a, ...}: add before the closing brace
             at = node.end_mark.index - 1
-            return text[:at] + ", status: " + status + text[at:]
-        last = node.value[-1][1]
-        at = last.end_mark.index
-        if last.end_mark.column != 0:  # inline value: continue to end of its line
-            nl = text.find("\n", at)
-            if nl < 0:
-                text += "\n"
-                nl = len(text) - 1
-            at = nl + 1
-        indent = " " * node.value[0][0].start_mark.column
-        return text[:at] + indent + "status: " + status + "\n" + text[at:]
-    raise PlanError(f"no step with id '{step_id}'")
+            lead = "" if text[:at].rstrip().endswith(",") else ", "
+            new = text[:at] + lead + "status: " + status + text[at:]
+        else:
+            last = node.value[-1][1]
+            at = last.end_mark.index
+            if last.end_mark.column != 0:  # inline value: continue to end of its line
+                end = text.find("\n", at)
+                if end < 0:
+                    text += nl
+                    end = len(text) - 1
+                at = end + 1
+            indent = " " * node.value[0][0].start_mark.column
+            new = text[:at] + indent + "status: " + status + nl + text[at:]
+        break
+    if new is None:
+        raise PlanError(f"no step with id '{step_id}'")
+    try:
+        expected = copy.deepcopy(yaml.safe_load(text))
+        _data_step(expected, step_id)["status"] = status
+        ok = yaml.safe_load(new) == expected
+    except (yaml.YAMLError, TypeError):
+        ok = False
+    if not ok:
+        raise PlanError(f"could not edit '{step_id}' safely (YAML aliases or unusual layout?); "
+                        "change its status by hand")
+    return new
 
 
 def _str(v):
@@ -104,7 +155,16 @@ def _str_list(v):
         return []
     if isinstance(v, str):
         return [v]
+    if not isinstance(v, list):
+        raise PlanError(f"expected a list of text, got: {v!r}")
     return [_str(x) for x in v if _str(x)]
+
+
+def _decisions(v):
+    v = v or []
+    if not isinstance(v, list) or not all(isinstance(d, dict) for d in v):
+        raise PlanError("plan.decisions must be a list of {title, detail}")
+    return v
 
 
 def normalize(raw):
@@ -128,8 +188,7 @@ def normalize(raw):
             "risks": _str_list(meta.get("risks")),
             "decisions": [
                 {"title": _str(d.get("title")), "detail": _str(d.get("detail"))}
-                for d in (meta.get("decisions") or [])
-                if isinstance(d, dict)
+                for d in _decisions(meta.get("decisions"))
             ],
             "architecture": {
                 "before": _str(arch.get("before")),
@@ -144,9 +203,14 @@ def normalize(raw):
     for i, s in enumerate(raw["steps"]):
         if not isinstance(s, dict):
             raise PlanError(f"step #{i + 1} is not a mapping")
-        sid = _str(s.get("id"))
-        if not sid:
+        sid = s.get("id")
+        if sid is None or sid == "":
             raise PlanError(f"step #{i + 1} has no id")
+        if not isinstance(sid, str):
+            raise PlanError(f"step #{i + 1}: id {sid!r} must be text; put quotes around it")
+        sid = sid.strip()
+        if not ID_RE.match(sid):
+            raise PlanError(f"step id '{sid}' may only use letters, digits, '.', '_' and '-'")
         status = _str(s.get("status")) or "not_started"
         if status not in STATUSES:
             raise PlanError(f"step '{sid}': status must be one of {STATUSES}")
@@ -252,7 +316,11 @@ def analyze(plan):
     crit_edges = {(a, b) for a, b in zip(critical, critical[1:])}
 
     uncovered = [s["id"] for s in steps if not s["acceptance_criteria"]]
-    n_files = len({f["path"] for s in steps for f in s["files"]})
+    n_files = len(paths)
+    actions = {}
+    for s in steps:
+        for f in s["files"]:
+            actions.setdefault(path_parts(f["path"]), []).append(f["action"])
     complexity = plan["plan"]["complexity"]
     if not complexity:
         score = len(steps) + n_files // 2 + len(critical)
@@ -264,6 +332,10 @@ def analyze(plan):
     for s in steps:
         if not s["files"]:
             warnings.append(f"step '{s['id']}' lists no files")
+    for p, acts in actions.items():
+        if len(set(acts)) > 1:
+            warnings.append(f"'{'/'.join(p)}' is listed with different actions: "
+                            + ", ".join(sorted(set(acts))) + " (the tree shows the last)")
     for item in plan["plan"]["inferred"]:
         warnings.append(f"inferred, please confirm: {item}")
     return {
@@ -281,7 +353,7 @@ def analyze(plan):
 
 def mm(text):
     """Escape text for use inside a quoted mermaid label."""
-    out = text.replace("#", "#35;").replace("&", "#amp;")
+    out = text.replace("#", "#35;").replace("&", "#amp;").replace("`", "#96;")
     return out.replace("<", "#lt;").replace(">", "#gt;").replace('"', "#quot;")
 
 
@@ -358,7 +430,7 @@ def file_tree_mermaid(plan):
 
 # -------------------------------------------------------------------- render
 
-def build_data(plan, an):
+def build_data(plan, an, source=""):
     steps = []
     for n, s in enumerate(plan["steps"]):
         d = dict(s)
@@ -379,15 +451,16 @@ def build_data(plan, an):
         "steps": steps,
         "critical": an["critical"],
         "order": an["order"],
+        "source": source,
         "n_files": an["n_files"],
         "dep_mermaid": dependency_mermaid(plan, an),
         "tree_mermaid": file_tree_mermaid(plan),
     }
 
 
-def render_html(plan):
+def render_html(plan, source=""):
     an, _ = analyze(plan)
-    data = build_data(plan, an)
+    data = build_data(plan, an, source)
     tpl = (ASSETS / "template.html").read_text(encoding="utf-8")
     mermaid_js = (ASSETS / "mermaid.min.js").read_text(encoding="utf-8")
     payload = json.dumps(data, ensure_ascii=False)
@@ -402,19 +475,25 @@ def render_html(plan):
 
 
 def slugify(text):
-    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or "plan"
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return slug or "plan-" + hashlib.sha1(text.encode("utf-8")).hexdigest()[:8]  # e.g. non-Latin titles
+
+
+def git_root(start):
+    try:
+        out = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=start,
+                             capture_output=True, text=True, check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return Path(out) if out else None
 
 
 def ensure_gitignore(start):
     """Add GITIGNORE_ENTRY to the .gitignore at the git root. Returns path or None."""
-    try:
-        root = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"], cwd=start,
-            capture_output=True, text=True, check=True,
-        ).stdout.strip()
-    except (OSError, subprocess.CalledProcessError):
+    root = git_root(start)
+    if root is None:
         return None
-    gi = Path(root) / ".gitignore"
+    gi = root / ".gitignore"
     existing = gi.read_text(encoding="utf-8") if gi.exists() else ""
     lines = [l.strip() for l in existing.splitlines()]
     if any(l in (GITIGNORE_ENTRY, GITIGNORE_ENTRY.rstrip("/"), "/" + GITIGNORE_ENTRY,
@@ -427,12 +506,14 @@ def ensure_gitignore(start):
 
 def cmd_render(args):
     plan = load_plan(args.plan)
-    page = render_html(plan)
+    page = render_html(plan, args.plan)
     if args.out:
         out = Path(args.out)
     else:
-        out = DEFAULT_OUT_DIR / (slugify(plan["plan"]["title"]) + ".html")
-        ensure_gitignore(Path.cwd())
+        # Under the git root, so it is ignored even when run from a subfolder.
+        root = git_root(Path.cwd()) or Path.cwd()
+        out = root / DEFAULT_OUT_DIR / (slugify(plan["plan"]["title"]) + ".html")
+        ensure_gitignore(root)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(page, encoding="utf-8")
     print(f"Report written: {out.resolve()}")
@@ -454,11 +535,38 @@ def cmd_validate(args):
 def cmd_status(args):
     if args.status not in STATUSES:
         sys.exit(f"status must be one of {STATUSES}")
-    text = Path(args.plan).read_text(encoding="utf-8")
+    path = Path(os.path.realpath(args.plan))
+    text = read_text(path)
+    plan = normalize(yaml.safe_load(text))
+    analyze(plan)  # refuse to touch a plan that is already invalid
+    steps = {s["id"]: s for s in plan["steps"]}
+    if args.step_id not in steps:
+        raise PlanError(f"no step with id '{args.step_id}'")
+    if args.status != "not_started" and not args.force:
+        waiting = [d for d in steps[args.step_id]["depends_on"] if steps[d]["status"] != "done"]
+        if waiting:
+            raise PlanError(f"'{args.step_id}' waits for: {', '.join(waiting)} "
+                            "(finish those first, or use --force)")
     new = set_step_status(text, args.step_id, args.status)
-    normalize(yaml.safe_load(new))  # make sure the edit left a valid plan
-    write_atomic(args.plan, new)
+    analyze(normalize(yaml.safe_load(new)))
+    write_atomic(path, new)
     print(f"{args.step_id}: {args.status}")
+
+
+def cmd_next(args):
+    plan = load_plan(args.plan)
+    an, _ = analyze(plan)
+    st = {s["id"]: s for s in plan["steps"]}
+    running = [i for i in an["order"] if st[i]["status"] == "in_progress"]
+    ready = [i for i in an["order"] if st[i]["status"] == "not_started"
+             and all(st[d]["status"] == "done" for d in st[i]["depends_on"])]
+    if running:
+        print("in progress: " + ", ".join(running))
+    if ready:
+        print("ready: " + ", ".join(ready))
+    if not running and not ready:
+        left = [i for i in an["order"] if st[i]["status"] != "done"]
+        print("blocked: " + ", ".join(left) if left else "all steps done")
 
 
 # ------------------------------------------------------------------- gherkin
@@ -614,13 +722,17 @@ def main(argv=None):
     p.add_argument("--open", action="store_true", help="open in the default browser")
     p.set_defaults(fn=cmd_render)
     p = sub.add_parser("status"); p.add_argument("plan"); p.add_argument("step_id")
-    p.add_argument("status"); p.set_defaults(fn=cmd_status)
+    p.add_argument("status")
+    p.add_argument("--force", action="store_true", help="allow starting a step before its dependencies are done")
+    p.set_defaults(fn=cmd_status)
+    p = sub.add_parser("next", help="list steps that are in progress or ready to start")
+    p.add_argument("plan"); p.set_defaults(fn=cmd_next)
     p = sub.add_parser("parse-feature"); p.add_argument("feature")
     p.add_argument("-o", "--output"); p.set_defaults(fn=cmd_parse_feature)
     args = ap.parse_args(argv)
     try:
         args.fn(args)
-    except (PlanError, OSError, yaml.YAMLError) as e:
+    except (PlanError, OSError, UnicodeDecodeError, yaml.YAMLError) as e:
         sys.exit(f"error: {e}")
 
 

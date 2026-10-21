@@ -7,7 +7,7 @@ description: Turn an agreed implementation plan into a visual HTML report (step 
 
 One YAML file is the single source of truth. The HTML report and the implementing agent both read it.
 
-Script: `scripts/plan_board.py` (Python 3 + PyYAML). Below, `<skill>` means the folder that holds this `SKILL.md`. Everything is offline and self-contained.
+Script: `scripts/plan_board.py` (Python 3 + PyYAML; if `python3` isn't found try `python` or `py -3`; if PyYAML is missing, `pip install pyyaml`). Below, `<skill>` means the folder that holds this `SKILL.md`: the base directory shown when the skill loads, so use that exact path and don't guess. Everything is offline and self-contained.
 
 ## When to use
 Only when the user asks, after they have reviewed and agreed to a plan. Do not start on your own.
@@ -22,7 +22,7 @@ Only when the user asks, after they have reviewed and agreed to a plan. Do not s
 3. **Check it:** `python3 <skill>/scripts/plan_board.py validate plans/<slug>.yaml`. Fix errors. Warnings (missing criteria, no files, inferred items) go to the user.
 4. **Show the user what you guessed** before building. List every item in `plan.inferred` in plain words and let them correct it. Once confirmed, remove those entries (and any step-level `inferred`).
 5. **Build the report:** `python3 <skill>/scripts/plan_board.py render plans/<slug>.yaml --open`
-   - Writes to `.claude/tmp/plan-board/<slug>.html` (relative to where you run it, so run it from the repo root) and adds `.claude/tmp/` to the repo's `.gitignore` if missing.
+   - Writes to `.claude/tmp/plan-board/<slug>.html` under the git root (even if you run it from a subfolder) and adds `.claude/tmp/` to that repo's `.gitignore` if missing. The report footer shows which plan file it was built from.
    - If the browser can't open (cloud/headless), tell the user the path. Never publish it as an artifact.
 6. **Edit loop.** For "move step 3 earlier", "add a note about caching" and the like: edit the YAML, run `validate`, run `render` again. Never edit the HTML. The layout stays identical; only the content changes.
 7. **Hand-off.** Once the user accepts, the YAML is the brief for the implementing agent (see below).
@@ -46,7 +46,7 @@ plan:
         ...
   inferred: [string]             # things you guessed; user must confirm
 steps:
-  - id: string                   # unique, stable, never reuse
+  - id: string                   # unique, stable, never reuse; letters, digits . _ - only (quote numbers: "1")
     title: string
     depends_on: [step id]
     files:
@@ -71,11 +71,12 @@ Each `Scenario` becomes one step. `And`/`But` continue the previous keyword. `Ba
 
 ## Agent hand-off
 When implementing from the YAML:
-1. Do steps in dependency order (a step starts only when every `depends_on` step is `done`).
-2. Before starting a step, run `plan_board.py status FILE STEP_ID in_progress`. After its acceptance criteria pass, run `... done`. Use this command, not hand edits. It changes only that one `status:` line, so comments and extra keys stay, and it refuses to write a file that wouldn't validate.
-3. Treat `acceptance_criteria` as the tests to satisfy, and `notes` as context.
-4. If the plan turns out wrong, stop and tell the user. Don't silently change the YAML structure.
-5. To see progress, run `render` again.
+1. Run `python3 <skill>/scripts/plan_board.py next FILE`. It lists steps that are `in progress` or `ready` (every `depends_on` step is `done`). Work only on those.
+2. Before starting a step, run `... status FILE STEP_ID in_progress`. After its acceptance criteria pass, run `... status FILE STEP_ID done`. Use this command, not hand edits. It changes only that one `status:` line (comments, extra keys and line endings stay), and refuses to start a step whose dependencies aren't done (`--force` overrides, tell the user if you use it), or to touch a plan that doesn't validate.
+3. One agent writes status at a time. If steps run in parallel, have the helpers report back and let the lead agent update the file.
+4. Treat `acceptance_criteria` as the tests to satisfy, and `notes` as context.
+5. If the plan turns out wrong, stop and tell the user. Don't silently change the YAML structure. Don't reuse or rename step ids.
+6. To see progress, run `render` again.
 
 ## What the report shows
-Header (steps, files, complexity, progress ring, coverage, open questions and risks) · zoomable canvas of step cards joined by arrows, with the critical path (longest dependency chain) in thick orange · Canvas/List toggle · per-step card with files, Given/When/Then, status, and a dashed red "no criteria" flag · architecture decisions with a Before/After diagram · file tree colored by create/edit/delete.
+Header (steps, files, complexity, hearts progress bubble, coverage, open questions and risks) · zoomable canvas of step cards joined by arrows, with the critical path (longest dependency chain) in thick orange · Canvas/List toggle · per-step card with files, Given/When/Then, status, and a dashed red "no criteria" flag · architecture decisions with a Before/After diagram · file tree colored by create/edit/delete.

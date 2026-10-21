@@ -25,7 +25,10 @@ def test_skill_frontmatter():
 
 def test_tests_and_evals_are_not_inside_the_plugin():
     import subprocess
-    files = subprocess.run(["git", "ls-files", "plugins/plan-board"], cwd=ROOT, capture_output=True, text=True).stdout.split()
+    done = subprocess.run(["git", "ls-files", "plugins/plan-board"], cwd=ROOT, capture_output=True, text=True)
+    if done.returncode != 0:
+        pytest.skip("not a git checkout")
+    files = done.stdout.split()
     banned = {"tests", "evals", "node_modules", "__pycache__"}
     assert files and not [f for f in files if banned & set(f.split("/"))]
 
@@ -39,3 +42,8 @@ def test_bundled_mermaid_is_unmodified():
 def test_examples_validate(examples, name):
     plan = pb.load_plan(examples / name)
     pb.analyze(plan)
+
+
+def test_vendored_notes_match_the_bundle():
+    notes = (SKILL / "assets/VENDORED.md").read_text()
+    assert MERMAID_SHA256 in notes and "11.4.1" in notes

@@ -175,6 +175,7 @@ details.notes ul { margin: 6px 0 0; padding-left: 20px; }
 .decision p { margin: 2px 0 0; font-size: .9rem; color: var(--ink-soft); }
 .legend { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--mono); font-size: .8rem; }
 .pz.short { height: 44vh; }
+.foot { font-family: var(--mono); font-size: .75rem; color: var(--ink-soft); text-align: center; margin-top: -6px; }
 .err { color: #8a1c1c; padding: 16px; }
 </style>
 </head>
@@ -240,6 +241,8 @@ details.notes ul { margin: 6px 0 0; padding-left: 20px; }
   <div class="pz short" id="tree-pz"></div>
   </div>
 </section>
+
+<footer class="foot" id="foot"></footer>
 
 <script>/*__MERMAID__*/</script>
 <script>
@@ -308,7 +311,7 @@ function panZoom(host, onClick) {
       if (!w) return;
       const r = host.getBoundingClientRect();
       if (!r.width) return;
-      k = Math.min(1.2, (r.width - 24) / w, (r.height - 24) / h);
+      k = Math.max(0.15, Math.min(1.2, (r.width - 24) / w, (r.height - 24) / h));
       x = (r.width - w * k) / 2; y = (r.height - h * k) / 2; apply();
     },
     zoom(f) { const r = host.getBoundingClientRect(); zoomAt(r.width / 2, r.height / 2, f); },
@@ -321,6 +324,7 @@ function panZoom(host, onClick) {
     zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.12 : 1 / 1.12);
   }, { passive: false });
   host.addEventListener("pointerdown", e => {
+    if (e.button !== 0) return;
     drag = { sx: e.clientX, sy: e.clientY, ox: x, oy: y, moved: false, target: e.target };
     host.setPointerCapture(e.pointerId);
   });
@@ -365,7 +369,7 @@ function stepCard(s, opts) {
     chips.appendChild(el("span", null, "after"));
     for (const d of s.depends_on) {
       const ch = el("span", "chip dep", byId[d].num + " · " + byId[d].title);
-      ch.addEventListener("click", e => { e.stopPropagation(); select(d); });
+      ch.addEventListener("click", e => { e.stopPropagation(); select(d, true); });
       chips.appendChild(ch);
     }
     c.appendChild(chips);
@@ -468,9 +472,9 @@ function renderHead() {
 
 /* ---------- selection + views ---------- */
 let selected = null, depPz;
-function select(id) {
+function select(id, keep) {  // keep: jump to this step even if it is already selected
   const wasOpen = selected !== null;
-  selected = selected === id ? null : id;
+  selected = selected === id && !keep ? null : id;
   for (const c of document.querySelectorAll(".mcard.sel, .card.sel")) c.classList.remove("sel");
   const drawer = $("#drawer"); drawer.innerHTML = "";
   $("#canvas-wrap").classList.toggle("with-drawer", !!selected);
@@ -500,6 +504,7 @@ function setView(v) {
 /* ---------- boot ---------- */
 async function boot() {
   renderHead();
+  if (DATA.source) $("#foot").textContent = "plan file: " + DATA.source + " · edit it, then render again";
   const list = $("#list");
   for (const id of DATA.order) {
     const c = stepCard(byId[id]);
@@ -546,7 +551,9 @@ async function boot() {
   try { if (DATA.n_files) treePz.set(await draw("tree", DATA.tree_mermaid)); else $("#tree-pz").appendChild(el("div", "pz-empty", "No files listed")); } catch (e) { fail($("#tree-pz"), e); }
 
   const arch = DATA.architecture, rendered = {};
+  let archRequest = 0;
   const showArch = async which => {
+    const mine = ++archRequest;  // a newer click wins over a slower earlier render
     $("#a-before").setAttribute("aria-pressed", which === "before");
     $("#a-after").setAttribute("aria-pressed", which === "after");
     const src = arch[which];
@@ -555,8 +562,8 @@ async function boot() {
     if (!src) { archPz.stage.innerHTML = ""; $("#arch-pz").appendChild(el("div", "pz-empty", "No " + which + " diagram provided")); return; }
     try {
       if (!rendered[which]) rendered[which] = await draw("arch-" + which, src);
-      archPz.set(rendered[which]);
-    } catch (e) { fail($("#arch-pz"), e); }
+      if (mine === archRequest) archPz.set(rendered[which]);
+    } catch (e) { if (mine === archRequest) fail($("#arch-pz"), e); }
   };
   $("#a-before").onclick = () => showArch("before");
   $("#a-after").onclick = () => showArch("after");

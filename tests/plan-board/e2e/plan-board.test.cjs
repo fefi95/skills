@@ -109,13 +109,29 @@ test("zoom buttons and wheel change the scale", async () => {
 
 test("selecting another card keeps your pan and zoom", async () => {
   const page = await open(EXAMPLE);
-  await clickNode(page, 0); // opens the drawer, which refits once
-  await page.waitForTimeout(100);
+  const fitted = await stageTransform(page, "dep-pz");
+  await clickNode(page, 0); // opens the drawer, which refits once (the canvas gets narrower)
+  await page.waitForFunction(t => document.querySelector("#dep-pz .pz-stage").style.transform !== t, fitted);
   await page.locator('.tools[data-for="dep-pz"] button', { hasText: "+" }).click();
-  const t = await stageTransform(page, "dep-pz");
+  const zoomed = await stageTransform(page, "dep-pz");
   await clickNode(page, 1);
-  await page.waitForTimeout(100);
-  assert.equal(await stageTransform(page, "dep-pz"), t);
+  await page.waitForFunction(() => /Cache service/.test(document.querySelector("#drawer h3")?.innerText || ""));
+  assert.equal(await stageTransform(page, "dep-pz"), zoomed);
+  await page.close();
+});
+
+test("right click does not select", async () => {
+  const page = await open(EXAMPLE);
+  await page.locator("#dep-pz").scrollIntoViewIfNeeded();
+  const box = await page.locator("#dep-pz .node").nth(1).boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: "right" });
+  assert.equal(await page.locator("#drawer .card").count(), 0);
+  await page.close();
+});
+
+test("report footer names the plan file", async () => {
+  const page = await open(EXAMPLE);
+  assert.match(await page.locator("#foot").innerText(), /plan file: .*caching\.plan\.yaml/);
   await page.close();
 });
 
@@ -129,6 +145,40 @@ test("list view: toggle works and dependency chips jump to the right step", asyn
   assert.equal(await page.locator("#list .card.sel").getAttribute("data-id"), "redis-client");
   await page.click("#v-canvas");
   assert.ok(await page.locator("#dep-pz").isVisible());
+  await page.close();
+});
+
+test("clicking a dependency chip for the already-selected step keeps it selected", async () => {
+  const page = await open(EXAMPLE);
+  await page.click("#v-list");
+  await page.locator('#list .card[data-id="cache-service"]').click({ position: { x: 20, y: 10 } });
+  assert.equal(await page.locator("#list .card.sel").getAttribute("data-id"), "cache-service");
+  // chip on step "cache-products" points to cache-service, which is selected right now
+  await page.locator('#list .card[data-id="cache-products"] .chip.dep').click();
+  assert.equal(await page.locator("#list .card.sel").getAttribute("data-id"), "cache-service");
+  await page.close();
+});
+
+test("fast Before/After clicks end on the diagram you asked for", async () => {
+  const plan = writePlan(`plan:
+  title: Race
+  architecture:
+    before: |
+      flowchart LR
+        BEFOREONE --> BEFORETWO
+    after: |
+      flowchart LR
+        AFTERONE --> AFTERTWO
+steps:
+  - {id: a}
+`);
+  const page = await open(plan);
+  await page.evaluate(() => { document.querySelector("#a-before").click(); document.querySelector("#a-after").click(); });
+  await page.waitForTimeout(800); // give the slower first render time to (wrongly) land
+  assert.equal(await page.locator("#a-after").getAttribute("aria-pressed"), "true");
+  const svg = await page.locator("#arch-pz svg").innerHTML();
+  assert.match(svg, /AFTERONE/);
+  assert.doesNotMatch(svg, /BEFOREONE/);
   await page.close();
 });
 

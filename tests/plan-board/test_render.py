@@ -26,12 +26,38 @@ def test_render_is_deterministic(examples):
 
 
 def test_page_shell_is_identical_across_plans(examples):
-    """Only the data changes between plans; the template around it stays the same."""
+    """Only the data and the title change between plans; the rest is byte-for-byte the same."""
+    def shell(page):
+        page = re.sub(r"const DATA = .*?;\n", "const DATA = X;\n", page, flags=re.S)
+        return re.sub(r"<title>.*?</title>", "<title></title>", page)
     a = render(pb.load_plan(examples / "caching.plan.yaml"))
     b = render(make_plan({"id": "x"}, title="Other"))
-    strip = lambda p: re.sub(r"const DATA = .*?;\n", "", p, flags=re.S).replace("Other", "").replace("Add response caching to the API", "")
-    assert strip(a).count("<section") == strip(b).count("<section")
-    assert re.findall(r'id="([\w-]+)"', strip(a)) == re.findall(r'id="([\w-]+)"', strip(b))
+    assert shell(a) == shell(b)
+
+
+def test_template_placeholders_in_plan_text_are_harmless():
+    nasty = "/*__MERMAID__*/ __TITLE__ /*__DATA__*/null"
+    page = render(make_plan({"id": "a", "title": nasty}, title=nasty, summary=nasty))
+    assert embedded_data(page)["title"] == nasty
+    assert page.count("const DATA = ") == 1
+
+
+def test_report_footer_names_the_plan_file():
+    page = pb.render_html(make_plan({"id": "a"}), "plans/x.yaml")
+    assert embedded_data(page)["source"] == "plans/x.yaml"
+
+
+def test_rendering_from_a_subfolder_still_lands_in_the_ignored_root_folder(tmp_path, examples):
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    sub = tmp_path / "pkg" / "deep"
+    sub.mkdir(parents=True)
+    r = subprocess.run([sys.executable, str(SCRIPT), "render", str(examples / "caching.plan.yaml")],
+                       cwd=sub, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert (tmp_path / ".claude/tmp/plan-board/add-response-caching-to-the-api.html").exists()
+    assert not (sub / ".claude").exists()
+    ignored = subprocess.run(["git", "check-ignore", "-q", ".claude/tmp/plan-board/x.html"], cwd=tmp_path)
+    assert ignored.returncode == 0
 
 
 HOSTILE = ['x <!-- <script> y', '</script><img src=x onerror=alert(1)>', "a b", '"quotes" & <tags> #1']
