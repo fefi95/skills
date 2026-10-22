@@ -1,0 +1,8 @@
+{
+  "name": "plan-board",
+  "description": "Turn an agreed implementation plan into a visual HTML board and a YAML hand-off file for the implementing agent.",
+  "version": "0.1.0",
+  "author": {
+    "name": "fefi95"
+  }
+}

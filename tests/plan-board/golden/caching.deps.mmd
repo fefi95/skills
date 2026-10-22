@@ -1,0 +1,13 @@
+flowchart LR
+  n0["<div class='mcard st-not_started'><div class='mtop'><span class='mnum'>1</span><span class='spill not_started'>not started</span></div><div class='mtitle'>Add Redis client</div><div class='mmeta'>2 files · 1 criteria</div><div> <span class='flag crit'>critical path</span></div></div>"]:::card
+  n1["<div class='mcard st-not_started'><div class='mtop'><span class='mnum'>2</span><span class='spill not_started'>not started</span></div><div class='mtitle'>Cache service</div><div class='mmeta'>2 files · 2 criteria</div><div> <span class='flag crit'>critical path</span></div></div>"]:::card
+  n2["<div class='mcard st-in_progress'><div class='mtop'><span class='mnum'>3</span><span class='spill in_progress'>in progress</span></div><div class='mtitle'>Cache product endpoints</div><div class='mmeta'>2 files · 1 criteria</div><div> <span class='flag crit'>critical path</span></div></div>"]:::card
+  n3["<div class='mcard st-not_started'><div class='mtop'><span class='mnum'>4</span><span class='spill not_started'>not started</span></div><div class='mtitle'>Invalidate on edit</div><div class='mmeta'>2 files · 0 criteria</div><div> <span class='flag gap'>no criteria</span></div></div>"]:::card
+  n4["<div class='mcard st-done'><div class='mtop'><span class='mnum'>5</span><span class='spill done'>done</span></div><div class='mtitle'>Document the cache</div><div class='mmeta'>1 file · 1 criteria</div><div> <span class='flag crit'>critical path</span></div></div>"]:::card
+  n0 --> n1
+  n1 --> n2
+  n1 --> n3
+  n2 --> n4
+  n3 --> n4
+  classDef card fill:transparent,stroke:transparent,color:#5a2d2d;
+  linkStyle 0,1,3 stroke:#e8782a,stroke-width:4px;

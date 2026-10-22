@@ -1,0 +1,80 @@
+plan:
+  title: Add response caching to the API
+  summary: Cache read-heavy endpoints in Redis so repeat requests skip the database.
+  complexity: medium
+  open_questions:
+    - How long should cached product pages live?
+  risks:
+    - Stale data after an admin edit if invalidation is missed.
+  decisions:
+    - title: Redis over in-memory
+      detail: Shared across server instances, survives restarts.
+    - title: Cache at the service layer
+      detail: Keeps controllers thin and makes invalidation easy to find.
+  architecture:
+    before: |
+      flowchart LR
+        C[Client] --> A[API]
+        A --> D[(Database)]
+    after: |
+      flowchart LR
+        C[Client] --> A[API]
+        A --> K{Cache}
+        K -- hit --> A
+        K -- miss --> D[(Database)]
+        D --> K
+        K -.-> R[(Redis)]
+  inferred:
+    - Step order for "invalidate" was guessed from the plan text.
+steps:
+  - id: redis-client
+    title: Add Redis client
+    files:
+      - {path: src/lib/redis.ts, action: create}
+      - {path: package.json, action: edit}
+    acceptance_criteria:
+      - given: Redis is running
+        when: the app starts
+        then: a connection is opened and logged
+    notes: Read the URL from REDIS_URL.
+  - id: cache-service
+    title: Cache service
+    depends_on: [redis-client]
+    files:
+      - {path: src/services/cache.ts, action: create}
+      - {path: src/services/cache.test.ts, action: create}
+    acceptance_criteria:
+      - given: a key is stored with a 60s lifetime
+        when: it is read within 60s
+        then: the stored value comes back
+      - given: a key was stored
+        when: 60s pass
+        then: reading returns nothing
+  - id: cache-products
+    title: Cache product endpoints
+    depends_on: [cache-service]
+    files:
+      - {path: src/controllers/products.ts, action: edit}
+      - {path: src/services/products.ts, action: edit}
+    acceptance_criteria:
+      - given: a product was fetched once
+        when: it is fetched again
+        then: the database is not queried
+    status: in_progress
+  - id: invalidate
+    title: Invalidate on edit
+    depends_on: [cache-service]
+    inferred: [depends_on]
+    files:
+      - {path: src/services/products.ts, action: edit}
+      - {path: src/legacy/cache-shim.ts, action: delete}
+  - id: docs
+    title: Document the cache
+    depends_on: [cache-products, invalidate]
+    files:
+      - {path: docs/caching.md, action: create}
+    acceptance_criteria:
+      - given: a new developer reads the docs
+        when: they look for cache settings
+        then: they find the env vars and lifetimes
+    status: done
