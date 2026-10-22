@@ -6,7 +6,7 @@ My Agent skills and testing playground
 
 ## Install
 ### In a repository, via `settings.json`
-Add this to `.claude/settings.json` in your repo and commit it. Anyone who opens the repo in Claude Code is asked to trust it, and then gets the skill.
+Add this to `.claude/settings.json` in your repo and commit it. Anyone who opens the repo in Claude Code is asked to trust the folder, then prompted to install the marketplace and plugin.
 ```json
 {
   "extraKnownMarketplaces": {
@@ -19,7 +19,7 @@ Add this to `.claude/settings.json` in your repo and commit it. Anyone who opens
   }
 }
 ```
-Use `.claude/settings.local.json` instead if you only want it for yourself, or `~/.claude/settings.json` to have it in every repo.
+Use `.claude/settings.local.json` instead if you only want it for yourself (Claude Code keeps it out of git), or `~/.claude/settings.json` to have it in every repo.
 
 ### With commands
 In Claude Code:
