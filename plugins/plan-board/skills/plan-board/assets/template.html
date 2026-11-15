@@ -173,7 +173,11 @@ details.notes ul { margin: 6px 0 0; padding-left: 20px; }
 .decision:nth-child(even) { background: var(--pink-soft); }
 .decision b { display: block; font-family: var(--mono); }
 .decision p { margin: 2px 0 0; font-size: .9rem; color: var(--ink-soft); }
-.legend { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--mono); font-size: .8rem; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font-family: var(--mono); font-size: .8rem; color: var(--ink-soft); }
+.legend .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #7a3b3b; vertical-align: -1px; margin-right: 6px; }
+.legend .dot.create { background: #dbe8fb; }
+.legend .dot.edit { background: #ffe9cf; }
+.legend .dot.delete { background: #f9ccd2; }
 .pz.short { height: 44vh; }
 .foot { font-family: var(--mono); font-size: .75rem; color: var(--ink-soft); text-align: center; margin-top: -6px; }
 .err { color: #8a1c1c; padding: 16px; }
@@ -232,9 +236,9 @@ details.notes ul { margin: 6px 0 0; padding-left: 20px; }
   <div class="bar">
     <span class="sub"><span class="ic folder"></span>Files touched</span>
     <div class="legend">
-      <span><span class="ic create"></span>create</span>
-      <span><span class="ic edit"></span>edit</span>
-      <span><span class="ic delete"></span>delete</span>
+      <span><span class="dot create"></span>create</span>
+      <span><span class="dot edit"></span>edit</span>
+      <span><span class="dot delete"></span>delete</span>
     </div>
   </div>
   <div class="tools" data-for="tree-pz"></div>
