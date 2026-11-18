@@ -32,5 +32,5 @@ Takes a plan-board YAML and writes a workflow script that implements it. The use
 
 ## Limits to tell the user
 - A run can't ask questions. Review the plan before you start it.
-- The workflow has absolute paths baked in (plan, plan-board script). Regenerate after moving the repo or updating the plugins.
+- The workflow has absolute paths baked in, so don't commit it unless the team shares those paths (plan, plan-board script). Regenerate after moving the repo or updating the plugins.
 - Re-running continues where it stopped: finished steps are skipped. Their PRs must be merged, or the next steps start from the base branch without them.

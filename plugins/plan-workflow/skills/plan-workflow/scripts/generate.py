@@ -11,6 +11,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import shlex
 import sys
 from pathlib import Path
 
@@ -30,9 +31,9 @@ def find_plan_board(explicit=None):
     for c in cands:
         if c and Path(c).is_file():
             return Path(c).resolve()
-    cache = Path.home() / ".claude" / "plugins"
+    cache = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude") / "plugins"
     if cache.is_dir():
-        hits = sorted(cache.glob("**/plan-board/**/scripts/plan_board.py"))
+        hits = sorted(cache.glob("**/plan-board/**/scripts/plan_board.py"), key=lambda p: p.stat().st_mtime)
         if hits:
             return hits[-1].resolve()
     sys.exit(MISSING)
@@ -48,7 +49,7 @@ def load_plan_board(path):
 def plan_hash(plan):
     """Short hash of what the workflow bakes in. Ignores `status`, which the run edits."""
     keys = ("id", "title", "depends_on", "files", "acceptance_criteria", "notes")
-    data = [{k: s[k] for k in keys} for s in plan["steps"]]
+    data = {"title": plan["plan"]["title"], "steps": [{k: s[k] for k in keys} for s in plan["steps"]]}
     blob = json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:12]
 
@@ -73,8 +74,9 @@ def build(plan, plan_path, pb_script, slug, source_template):
         "slug": slug,
         "planPath": str(Path(plan_path).resolve()),
         "planBoardScript": str(pb_script),
-        "hashCommand": f"python3 {HERE / 'generate.py'} hash {Path(plan_path).resolve()}"
-                       f" --plan-board {pb_script}",
+        "hashCommand": " ".join(["python3", shlex.quote(str(HERE / "generate.py")), "hash",
+                                 shlex.quote(str(Path(plan_path).resolve())),
+                                 "--plan-board", shlex.quote(str(pb_script))]),
         "planHash": plan_hash(plan),
         "steps": [
             {k: s[k] for k in ("id", "title", "depends_on", "files", "acceptance_criteria", "notes")}

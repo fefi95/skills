@@ -173,9 +173,9 @@ test('dryRun asks only the preflight agent and lists waves', async () => {
 test('status is written only through plan_board status, never as a hand edit', async () => {
   const { out, hash } = generate(diamond)
   const run = await runWorkflow(out, fake(hash))
-  const status = run.calls.filter((c) => /^wave \d+: status$/.test(c.label))
+  const status = run.calls.filter((c) => /^wave \d+: status (start|end)$/.test(c.label))
   assert.ok(status.length >= 6)
-  for (const c of status) assert.match(c.prompt, /plan_board\.py status \S+ \w+ (in_progress|done|not_started)/)
+  for (const c of status) assert.match(c.prompt, /plan_board\.py' status '[^']+' '\w+' (in_progress|done|not_started)/)
   assert.ok(status.every((c) => /do not commit it/.test(c.prompt)))
 })
 
@@ -218,4 +218,52 @@ test('agent that throws in a build is retried and then fails the step, not the r
   }))
   assert.equal(run.result.steps.find((s) => s.id === 'c').outcome, 'failed')
   assert.equal(run.result.steps.find((s) => s.id === 'b').outcome, 'done')
+})
+
+test('a child is not stacked when its parent fell back to a plain PR', async () => {
+  const yaml = 'plan: {title: Chain}\nsteps:\n  - {id: a, title: A}\n  - {id: b, title: B, depends_on: [a]}'
+  const { out, hash } = generate(yaml, 'chain')
+  const run = await runWorkflow(out, fake(hash, {
+    hook(stage, id) { if (stage === 'publish' && id === 'a') return { ok: true, pr: 'https://pr/a', mode: 'plain' } },
+  }))
+  assert.match(run.calls.find((c) => c.label === 'b: publish').prompt, /Open a plain pull request/)
+})
+
+test('an empty judge verdict list does not pass a step', async () => {
+  const { out, hash } = generate(diamond)
+  const run = await runWorkflow(out, fake(hash, {
+    hook(stage, id) { if (stage === 'review' && id === 'a') return { allPass: true, verdicts: [] } },
+  }))
+  assert.equal(run.result.steps.find((s) => s.id === 'a').outcome, 'failed')
+  assert.match(run.result.text, /no passing verdict for criterion 1/)
+})
+
+test('a failed build is retried with an idempotent worktree instruction', async () => {
+  const { out, hash } = generate('plan: {title: One}\nsteps:\n  - {id: a, title: A}', 'one')
+  let n = 0
+  const run = await runWorkflow(out, fake(hash, {
+    hook(stage) { if (stage === 'build' && n++ === 0) return { ok: false, branch: '', worktree: '', summary: 'nope' } },
+  }))
+  assert.equal(run.result.steps[0].outcome, 'done')
+  assert.match(run.calls.find((c) => c.label === 'a (retry): build').prompt, /already exists from an earlier try, reuse it/)
+})
+
+test('after a CI fix the watcher is told which commit to wait for', async () => {
+  const { out, hash } = generate('plan: {title: One}\nsteps:\n  - {id: a, title: A}', 'one')
+  let seen = 0
+  const run = await runWorkflow(out, fake(hash, {
+    hook(stage) {
+      if (stage === 'CI') return seen++ === 0 ? { state: 'red', summary: 'x' } : { state: 'green', summary: '' }
+      if (stage === 'CI fix 1') return { ok: true, sha: 'abc123' }
+    },
+  }))
+  const watches = run.calls.filter((c) => c.label === 'a: CI')
+  assert.doesNotMatch(watches[0].prompt, /abc123/)
+  assert.match(watches[1].prompt, /commit abc123/)
+})
+
+test('paths with spaces are quoted in status commands', async () => {
+  const { out, hash } = generate(diamond, 'with space')
+  const run = await runWorkflow(out, fake(hash))
+  assert.match(run.calls.find((c) => /status start/.test(c.label)).prompt, /status '[^']* [^']*'/)
 })

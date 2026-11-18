@@ -36,7 +36,7 @@ export async function runWorkflow(file, handler, args) {
   const parallel = (tasks) => Promise.all(tasks.map((t) => Promise.resolve().then(t).catch(() => null)))
   const fn = new AsyncFunction('agent', 'pipeline', 'parallel', 'phase', 'log', 'args', 'Date', 'Math', body)
   const noClock = { now() { throw new Error('Date.now is not allowed') } }
-  const noRandom = { ...Math, random() { throw new Error('Math.random is not allowed') } }
+  const noRandom = Object.create(Math, { random: { value() { throw new Error('Math.random is not allowed') } } })
   const result = await fn(agent, pipeline, parallel, () => {}, (m) => logs.push(m), args, noClock, noRandom)
   return { result, calls, logs, get maxActive() { return maxActive } }
 }
