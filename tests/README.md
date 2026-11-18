@@ -18,3 +18,13 @@ Or `make test` from the repo root (runs both).
 - **Golden files** (`golden/`): the Mermaid text for the example plan. If you change the diagram output on purpose, delete the golden files, run pytest twice, and review the diff.
 - **Browser tests** (`e2e/`): open real reports in Chromium and click through them. Set `PW_CHROMIUM=/path/to/chromium` to use a specific browser, otherwise Playwright's own is used (`npx playwright install chromium`).
 - If `mermaid.min.js` is upgraded on purpose, update `MERMAID_SHA256` in `test_packaging.py`.
+
+## plan-workflow
+
+```
+python3 -m pytest tests/plan-workflow      # generator tests, plus the Node tests below
+node --test tests/plan-workflow/workflow.test.mjs
+```
+
+- `test_generate.py`: generator, plan hash, missing plan-board message, packaging.
+- `workflow.test.mjs`: runs generated workflows in Node with fake `agent()` / `pipeline()` globals: wave order, 3 at a time, retries, blocked steps, stacks vs plain PRs, CI attempts, dry run, hash check. Needs Node (the Python test skips it if Node is missing).

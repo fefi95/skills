@@ -1,0 +1,8 @@
+{
+  "name": "plan-workflow",
+  "description": "Turn a plan-board YAML into a Claude Code dynamic workflow that builds the whole plan: parallel steps, checks, review, draft PRs and CI fixes.",
+  "version": "0.1.0",
+  "author": {
+    "name": "fefi95"
+  }
+}
