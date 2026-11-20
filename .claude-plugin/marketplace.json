@@ -8,6 +8,11 @@
       "name": "plan-board",
       "source": "./plugins/plan-board",
       "description": "Turn an agreed implementation plan into a visual HTML board and a YAML hand-off file."
+    },
+    {
+      "name": "plan-workflow",
+      "source": "./plugins/plan-workflow",
+      "description": "Turn a plan-board YAML into a Claude Code dynamic workflow that builds the whole plan, one draft PR per step. Needs plan-board."
     }
   ],
   "metadata": {
