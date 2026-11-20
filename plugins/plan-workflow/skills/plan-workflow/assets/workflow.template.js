@@ -254,7 +254,7 @@ function implementPrompt(step, g, ctx, feedback, previous) {
     ? `Continue in the existing worktree ${previous.worktree} (branch ${previous.branch}). Do not create a new one.`
     : [
         `Work in your own git worktree, never in the main checkout:`,
-        `  git fetch origin && git worktree add -b ${branch} ${wt} ${g.startRef}`,
+        `  git fetch origin && git worktree add -b ${q(branch)} ${q(wt)} ${q(g.startRef)}`,
         `If that fails because the branch or worktree already exists from an earlier try, reuse it as it is instead of failing.`,
         g.merge.length
           ? `Then merge these finished parent branches into it, resolving conflicts: ${g.merge.join(', ')}.`
@@ -290,12 +290,13 @@ Report passed, unverified, the commands you ran in ran, and a short report of th
 function judgePrompt(step, impl, checks) {
   return `You are an independent reviewer. You did not write this code. Judge each acceptance criterion of step "${step.id}" (${step.title}) from the actual change and the check results. Do not edit anything.
 
-Change: run \`git -C ${impl.worktree} show HEAD\` and read the files it touches.
+Change: run \`git -C ${q(impl.worktree)} show HEAD\` and read the files it touches.
 Check results:
 ${checks.report}
 
 Criteria:
 ${step.acceptance_criteria.map((c, i) => `${i + 1}. Given ${c.given}; When ${c.when}; Then ${c.then}`).join('\n') || '(none written: judge whether the change does what the title and notes say, as one criterion numbered 1)'}
+${step.acceptance_criteria.length || !step.notes ? '' : `\nNotes (the requirements when no criteria are written):\n${step.notes}`}
 
 For each criterion give index (starting at 1), pass, and a one-line reason. Pass only when the change and the checks show it. Set allPass true only if every criterion passes.`
 }
@@ -536,13 +537,11 @@ if (stuck.length) throw new Error(`dependency cycle or unreachable steps: ${stuc
 phase('CI')
 const withPr = PLAN.steps.filter((s) => state[s.id] === 'done')
 const layers = [...new Set(withPr.map((s) => results[s.id].wave))].sort((a, b) => a - b)
+// One PR at a time: a fix on a parent also touches the branches built on it, so parallel repairs could collide.
 for (const w of layers) {
-  const ids = withPr.filter((s) => results[s.id].wave === w).map((s) => s.id)
-  for (const group of chunk(ids, MAX_PARALLEL)) {
-    const out = await pipeline(group, (id) => watchCi(id))
-    group.forEach((id, i) => {
-      ciResults[id] = out[i] || { ci: 'unknown', note: 'CI agent failed' }
-    })
+  for (const x of withPr.filter((x) => results[x.id].wave === w)) {
+    const out = await safe(watchCi(x.id))
+    ciResults[x.id] = out || { ci: 'unknown', note: 'CI agent failed' }
   }
 }
 

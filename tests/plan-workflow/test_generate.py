@@ -71,6 +71,15 @@ def test_invalid_plans_stop_generation(tmp_path):
     assert run("generate", empty, "--out", tmp_path / "o.js", check=False).returncode != 0
 
 
+def test_step_ids_git_rejects_stop_generation(tmp_path):
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    plan = tmp_path / "p.yaml"
+    plan.write_text('steps:\n  - {id: "1.", title: One}\n')
+    done = run("generate", plan, "--out", tmp_path / "o.js", check=False)
+    assert done.returncode != 0 and "git rejects" in done.stderr
+    assert not (tmp_path / "o.js").exists()
+
+
 def test_missing_plan_board_gives_a_clear_message(tmp_path, monkeypatch):
     # Copy only the plan-workflow plugin so the sibling plan-board is not there.
     copy = tmp_path / "plugins" / "plan-workflow"

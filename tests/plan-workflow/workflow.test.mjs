@@ -129,7 +129,7 @@ test('a step with two parents is a plain PR on the parent that finished last', a
   assert.match(pub.prompt, /plain pull request with base branch plan\/demo\/c/)
   assert.match(pub.prompt, /b, c/)
   const build = run.calls.find((c) => c.label === 'd: build')
-  assert.match(build.prompt, /git worktree add -b plan\/demo\/d \S+ plan\/demo\/c/)
+  assert.match(build.prompt, /git worktree add -b 'plan\/demo\/d' '[^']+' 'plan\/demo\/c'/)
   assert.match(build.prompt, /merge these finished parent branches[^\n]*plan\/demo\/b/)
 })
 
@@ -266,4 +266,27 @@ test('paths with spaces are quoted in status commands', async () => {
   const { out, hash } = generate(diamond, 'with space')
   const run = await runWorkflow(out, fake(hash))
   assert.match(run.calls.find((c) => /status start/.test(c.label)).prompt, /status '[^']* [^']*'/)
+})
+
+test('a plan with notes but no criteria gives the reviewer the notes', async () => {
+  const { out, hash } = generate('plan: {title: One}\nsteps:\n  - {id: a, title: A, notes: must use Redis}', 'one')
+  const run = await runWorkflow(out, fake(hash, {
+    hook(stage, id, call) { if (stage === 'review') assert.match(call.prompt, /must use Redis/) },
+  }))
+  assert.equal(run.result.steps[0].outcome, 'done')
+})
+
+test('CI repairs never run at the same time', async () => {
+  const { out, hash } = generate(diamond)
+  let active = 0, max = 0
+  const run = await runWorkflow(out, async (call) => {
+    const isCi = /: CI/.test(call.label)
+    if (isCi) { active++; max = Math.max(max, active) }
+    try {
+      await new Promise((r) => setTimeout(r, 5))
+      return fake(hash)(call)
+    } finally { if (isCi) active-- }
+  })
+  assert.equal(max, 1)
+  assert.equal(run.result.steps.every((s) => s.ci === 'green'), true)
 })

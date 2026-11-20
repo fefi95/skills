@@ -12,6 +12,7 @@ import importlib.util
 import json
 import os
 import shlex
+import subprocess
 import sys
 from pathlib import Path
 
@@ -67,6 +68,20 @@ def load_checked(pb, plan_path):
     return plan
 
 
+def check_branch_names(plan, slug):
+    """Step ids become branch names (plan/<slug>/<id>). Reject ids git would refuse."""
+    for s in plan["steps"]:
+        name = f"plan/{slug}/{s['id']}"
+        try:
+            ok = subprocess.run(["git", "check-ref-format", "--branch", name],
+                                capture_output=True).returncode == 0
+        except OSError:
+            return  # no git here; the run itself will fail loudly
+        if not ok:
+            sys.exit(f"error: step id '{s['id']}' makes the branch name '{name}', which git rejects. "
+                     "Rename the step id (avoid a trailing '.', '..', or '.lock').")
+
+
 def build(plan, plan_path, pb_script, slug, source_template):
     title = plan["plan"]["title"]
     data = {
@@ -101,6 +116,7 @@ def cmd_generate(args):
         if stem.endswith(suffix):
             stem = stem[: -len(suffix)]
     slug = pb.slugify(args.name or stem)
+    check_branch_names(plan, slug)
     out = build(plan, args.plan, pb_script, slug, TEMPLATE.read_text(encoding="utf-8"))
     if args.out:
         target = Path(args.out)
